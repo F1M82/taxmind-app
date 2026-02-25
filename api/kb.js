@@ -1,6 +1,6 @@
 const KB_KEY = 'taxmind_kb_v1';
 
-async function kv(path, opts={}) {
+async function kvRaw(path, opts={}) {
   const url = process.env.KV_REST_API_URL;
   const token = process.env.KV_REST_API_TOKEN;
   if (!url || !token) throw new Error('KV not configured');
@@ -14,17 +14,29 @@ async function kv(path, opts={}) {
 
 async function getKB() {
   try {
-    const data = await kv(`/get/${KB_KEY}`);
+    const data = await kvRaw(`/get/${KB_KEY}`);
     if (!data.result) return [];
-    return JSON.parse(data.result);
+    
+    let parsed = data.result;
+    // Upstash may return already-parsed or string — handle both
+    if (typeof parsed === 'string') {
+      try { parsed = JSON.parse(parsed); } catch(e) { return []; }
+    }
+    // If still a string (double-encoded), parse again
+    if (typeof parsed === 'string') {
+      try { parsed = JSON.parse(parsed); } catch(e) { return []; }
+    }
+    if (!Array.isArray(parsed)) return [];
+    return parsed;
   } catch(e) { return []; }
 }
 
 async function setKB(value) {
-  const serialized = JSON.stringify(value);
-  await kv(`/set/${KB_KEY}`, {
+  const arr = Array.isArray(value) ? value : [];
+  // Store as single JSON string
+  await kvRaw(`/set/${KB_KEY}`, {
     method: 'POST',
-    body: JSON.stringify(serialized)
+    body: JSON.stringify(JSON.stringify(arr))
   });
 }
 
@@ -48,8 +60,7 @@ export default async function handler(req, res) {
       }
       const existing = await getKB();
       const existingIds = new Set(existing.map(d => d.id));
-      // Only add truly new documents (skip duplicates by id)
-      const newDocs = documents.filter(d => d.id && !existingIds.has(d.id) && d.title && d.title !== 'undefined');
+      const newDocs = documents.filter(d => d.id && d.title && d.title !== 'undefined' && !existingIds.has(d.id));
       const merged = [...existing, ...newDocs];
       await setKB(merged);
       return res.status(200).json({ ok: true, added: newDocs.length, total: merged.length });

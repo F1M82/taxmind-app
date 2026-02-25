@@ -645,28 +645,67 @@ function getCtx(q,k=6){
 
 // ── PROMPTS ────────────────────────────────────────────────
 const SYS_TAX=`You are TaxMind — Tax Intelligence Assistant for expert Indian tax & finance professionals. Expertise in both ITA 1961 and ITA 2025 (effective 1 Apr 2026).
-MANDATORY: 1) Always cite BOTH new Act 2025 section AND old Act 1961 equivalent. 2) State what changed/added/removed. 3) Cite CBDT circulars with number+date. 4) Integrate case laws: "The Hon'ble [Court] in [Case] [Citation] held that [ratio]." 5) Never invent section numbers. 6) End with ## References.
-CONTEXT:\n{ctx}`;
+MANDATORY: 1) Always cite BOTH new Act 2025 section AND old Act 1961 equivalent. 2) State what changed/added/removed. 3) Cite CBDT circulars with number+date. 4) Integrate case laws: "The Hon'ble [Court] in [Case] [Citation] held that [ratio]." 5) Never invent section numbers. 6) End with ## References section listing all sources used.
+KNOWLEDGE BASE CONTEXT (from uploaded documents):
+{kbctx}
+
+WEB SEARCH RESULTS (recent circulars, notifications, judgments):
+{webctx}`;
 
 const SYS_NOTICE=`You are TaxMind — senior tax advocate drafting replies to Indian income tax notices.
 Extract: ---NOTICE SUMMARY---\nNotice Type:\nAssessment Year:\nSection Cited:\nNature of Addition/Demand:\nAmount: ₹\nReply Deadline: (flag URGENT if <15 days)\nIssuing Authority:
 Then generate: ---DRAFT REPLY---\n[Date]\nTo, The [Designation], [Ward], Income Tax Dept\nSub: Reply to Notice u/s [X] for AY [Y] — [CLIENT NAME], PAN: [PAN]\n\n**I. INTRODUCTORY SUBMISSION**\n[acknowledge]\n**II. GROUNDS OF OBJECTION**\nGround 1: [ground with elaboration]\n**III. FACTUAL SUBMISSIONS**\n[facts]\n**IV. LEGAL SUBMISSIONS**\n4.1 [cite new+old Act sections]\n4.2 [case law with ratio and applicability]\n**V. PRAYER**\n(a) [relief]\n\nYours faithfully, [Name]\n---ENCLOSURES---\n---CASE LAWS CITED---
-CONTEXT:\n{ctx}`;
+KNOWLEDGE BASE:\n{kbctx}
+WEB RESULTS:\n{webctx}`;
 
 const SYS_CR=`You are TaxMind's Section Cross-Reference engine.
 Structure:\n## Section Cross-Reference: [Topic]\n### 📘 Old Act (ITA 1961)\n**Section:** | **Heading:**\n[provisions]\n### 📗 New Act (ITA 2025)\n**Section:** | **Heading:**\n[provisions]\n### 🔄 What Changed\n| Aspect | Old Act | New Act |\n|--------|---------|--------|\n### ➕ New / ➖ Removed\n### ⚡ Effective Date\n### 📌 Practical Note\n## References\nIMPORTANT: If uncertain of new Act section, say so clearly.
-CONTEXT:\n{ctx}`;
+KNOWLEDGE BASE:\n{kbctx}
+WEB RESULTS:\n{webctx}`;
+
+// ── WEB SEARCH ─────────────────────────────────────────────
+let webSearchEnabled = true;
+
+async function webSearch(query) {
+  if (!webSearchEnabled) return { results: [], source: 'disabled' };
+  try {
+    const r = await fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query })
+    });
+    if (!r.ok) return { results: [], source: 'error' };
+    const d = await r.json();
+    if (!d.ok) {
+      // Web search not configured — disable silently
+      webSearchEnabled = false;
+      return { results: [], source: 'not_configured' };
+    }
+    return { results: d.results || [], source: 'web' };
+  } catch(e) {
+    return { results: [], source: 'error' };
+  }
+}
+
+function formatWebResults(results) {
+  if (!results.length) return 'No recent web results found.';
+  return results.map((r, i) =>
+    `[W${i+1}] ${r.title}\nURL: ${r.url}\n${r.snippet}${r.published ? '\nDate: '+r.published : ''}`
+  ).join('\n\n');
+}
 
 // ── CLAUDE CALL (via secure proxy) ────────────────────────
-async function claude(sys,messages,ctx=''){
-  const s=sys.replace('{ctx}',ctx||'No documents in KB — answering from general knowledge of Indian tax law.');
-  const r=await fetch('/api/claude',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:MODEL,max_tokens:3000,system:s,messages})
+async function claude(sys, messages, kbctx='', webctx='') {
+  const s = sys
+    .replace('{kbctx}', kbctx || 'No documents uploaded yet.')
+    .replace('{webctx}', webctx || 'Web search not available.');
+  const r = await fetch('/api/claude', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: MODEL, max_tokens: 3000, system: s, messages })
   });
-  if(!r.ok){const e=await r.json();throw new Error(e.error||e.error?.message||'API error');}
-  return(await r.json()).content[0].text;
+  if (!r.ok) { const e = await r.json(); throw new Error(e.error || e.error?.message || 'API error'); }
+  return (await r.json()).content[0].text;
 }
 
 // ── MARKDOWN ───────────────────────────────────────────────
@@ -710,13 +749,24 @@ async function sendChat(){
   msgs.push({role:'user',content:text});
   addMsg('user',text);
   inp.value='';inp.style.height='auto';document.getElementById('sendBtn').disabled=true;
-  const tid=showTyping();
+  const tid=showTyping('Searching KB + web…');
   try{
-    const ctx=getCtx(text);
-    const reply=await claude(SYS_TAX,msgs,ctx);
-    msgs.push({role:'assistant',content:reply});
+    // Run KB retrieval and web search in parallel
+    const [kbctx, webData] = await Promise.all([
+      Promise.resolve(getCtx(text)),
+      webSearch(text + ' income tax India 2025')
+    ]);
+    const webctx = formatWebResults(webData.results);
+    const sources = [];
+    if(KB().length) sources.push('📚 Knowledge Base');
+    if(webData.results.length) sources.push('🌐 Web ('+webData.results.length+' results)');
+
     rmTyping(tid);
-    addMsg('assistant',reply,KB().length?['Shared KB']:[]);
+    const tid2=showTyping('Generating answer…');
+    const reply=await claude(SYS_TAX,msgs,kbctx,webctx);
+    msgs.push({role:'assistant',content:reply});
+    rmTyping(tid2);
+    addMsg('assistant',reply,sources);
   }catch(e){rmTyping(tid);addMsg('assistant','⚠️ '+e.message);showToast(e.message,'error');}
 }
 
@@ -725,18 +775,19 @@ function addMsg(role,content,srcs=[]){
   const row=document.createElement('div');
   row.className='msg-row '+role;
   const now=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
-  const s=srcs.length?`<div style="margin-top:5px">${srcs.map(x=>`<span class="src-tag">📄 ${x}</span>`).join('')}</div>`:'';
+  const s=srcs.length?`<div style="margin-top:5px">${srcs.map(x=>`<span class="src-tag">${x}</span>`).join('')}</div>`:'';
   const b=role==='assistant'?`<div class="md">${md(content)}</div>`:content;
   row.innerHTML=`<div class="av ${role==='assistant'?'ai':'user'}">${role==='assistant'?'⚖':'👤'}</div><div><div class="bubble ${role==='assistant'?'ai':'user'}">${b}</div>${s}<div class="b-meta">${now}</div></div>`;
   area.appendChild(row);area.scrollTop=area.scrollHeight;
 }
 
 let tc=0;
-function showTyping(){
+function showTyping(label=''){
   const id='t'+(++tc);
   const area=document.getElementById('chatArea');
   const r=document.createElement('div');r.className='msg-row';r.id=id;
-  r.innerHTML=`<div class="av ai">⚖</div><div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+  const lbl=label?`<span style="font-size:11px;color:var(--text-dim);margin-left:8px">${label}</span>`:'';
+  r.innerHTML=`<div class="av ai">⚖</div><div style="display:flex;align-items:center"><div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>${lbl}</div>`;
   area.appendChild(r);area.scrollTop=area.scrollHeight;return id;
 }
 function rmTyping(id){const e=document.getElementById(id);if(e)e.remove();}
@@ -746,8 +797,11 @@ async function analyzeNotice(){
   if(!text){showToast('Paste notice content first','error');return;}
   const btn=document.getElementById('analyzeBtn');btn.disabled=true;btn.textContent='Analyzing…';
   try{
-    const ctx=getCtx(text+' notice reply draft case law',8);
-    const reply=await claude(SYS_NOTICE,[{role:'user',content:'Analyze this income tax notice and generate a complete professional draft reply:\n\n'+text}],ctx);
+    const [kbctx, webData] = await Promise.all([
+      Promise.resolve(getCtx(text+' notice reply draft case law',8)),
+      webSearch(text + ' income tax notice reply case law India')
+    ]);
+    const reply=await claude(SYS_NOTICE,[{role:'user',content:'Analyze this income tax notice and generate a complete professional draft reply:\n\n'+text}],kbctx,formatWebResults(webData.results));
     const sm=reply.match(/---NOTICE SUMMARY---([\s\S]*?)---DRAFT REPLY---/);
     if(sm){
       const lines=sm[1].trim().split('\n').filter(l=>l.includes(':'));
@@ -770,10 +824,15 @@ async function lookup(){
   const k=document.getElementById('crKw').value.trim();
   if(!s&&!k){showToast('Enter a section or keyword','error');return;}
   const q=s?`Compare old ITA 1961 Section ${s} with new ITA 2025 equivalent.`:`ITA 2025 provisions on "${k}" vs old ITA 1961.`;
-  document.getElementById('crContent').innerHTML='<p style="color:var(--text-mid)">Looking up…</p>';
+  document.getElementById('crContent').innerHTML='<p style="color:var(--text-mid)">Searching KB and web…</p>';
   document.getElementById('crResult').style.display='block';
-  try{document.getElementById('crContent').innerHTML=md(await claude(SYS_CR,[{role:'user',content:q}],getCtx(q)));}
-  catch(e){document.getElementById('crContent').innerHTML=`<p style="color:var(--red)">Error: ${e.message}</p>`;}
+  try{
+    const [kbctx, webData] = await Promise.all([
+      Promise.resolve(getCtx(q)),
+      webSearch(q + ' India income tax')
+    ]);
+    document.getElementById('crContent').innerHTML=md(await claude(SYS_CR,[{role:'user',content:q}],kbctx,formatWebResults(webData.results)));
+  }catch(e){document.getElementById('crContent').innerHTML=`<p style="color:var(--red)">Error: ${e.message}</p>`;}
 }
 
 function showToast(msg,type='success'){

@@ -283,7 +283,13 @@ html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;backgroun
           <textarea class="input-ta" id="chatInput" rows="1" placeholder="Ask anything about Income Tax Act 2025…" onkeydown="hkey(event)" oninput="resize(this)"></textarea>
           <button class="send-btn" id="sendBtn" onclick="sendChat()" disabled>↑</button>
         </div>
-        <div class="input-hint">Enter to send · Shift+Enter new line · Always cites new & old Act sections</div>
+        <div class="input-hint" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <span>Enter to send · Shift+Enter new line</span>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--text-dim)">
+            <input type="checkbox" id="webToggle" checked onchange="toggleWeb(this)" style="accent-color:var(--teal)"/>
+            🌐 Web search
+          </label>
+        </div>
       </div>
     </div>
 
@@ -707,15 +713,23 @@ function formatWebResults(results) {
   ).join('\n\n');
 }
 
+// ── WEB TOGGLE ─────────────────────────────────────────────
+function toggleWeb(el){ localStorage.setItem('tm_web', el.checked?'1':'0'); }
+document.addEventListener('DOMContentLoaded',()=>{
+  const saved = localStorage.getItem('tm_web');
+  if(saved==='0'){ const t=document.getElementById('webToggle'); if(t) t.checked=false; }
+});
+function isWebOn(){ const t=document.getElementById('webToggle'); return t?t.checked:true; }
+
 // ── CLAUDE CALL (via secure proxy) ────────────────────────
-async function claude(sys, messages, kbctx='', webctx='') {
+async function claude(sys, messages, kbctx='', webctx='', maxTokens=2000) {
   const s = sys
     .replace('{kbctx}', kbctx || 'No documents uploaded yet.')
     .replace('{webctx}', webctx || 'Web search not available.');
   const r = await fetch('/api/claude', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, max_tokens: 3000, system: s, messages })
+    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, system: s, messages })
   });
   if (!r.ok) { const e = await r.json(); throw new Error(e.error || e.error?.message || 'API error'); }
   return (await r.json()).content[0].text;
@@ -762,13 +776,14 @@ async function sendChat(){
   msgs.push({role:'user',content:text});
   addMsg('user',text);
   inp.value='';inp.style.height='auto';document.getElementById('sendBtn').disabled=true;
-  const tid=showTyping('Searching KB + web…');
+  const tid=showTyping(isWebOn()?'Searching KB + web…':'Searching KB…');
   try{
-    // Run KB retrieval and web search in parallel
-    const [kbctx, webData] = await Promise.all([
-      Promise.resolve(getCtx(text)),
-      webSearch(text + ' income tax India 2025')
-    ]);
+    // KB retrieval always runs; web search only if toggle is on
+    const kbctx = getCtx(text);
+    let webData = { results: [] };
+    if(isWebOn()){
+      webData = await webSearch(text + ' income tax India 2025');
+    }
     const webctx = formatWebResults(webData.results);
     const sources = [];
     if(KB().length) sources.push('📚 Knowledge Base');
@@ -776,7 +791,7 @@ async function sendChat(){
 
     rmTyping(tid);
     const tid2=showTyping('Generating answer…');
-    const reply=await claude(SYS_TAX,msgs,kbctx,webctx);
+    const reply=await claude(SYS_TAX,msgs,kbctx,webctx,2000);
     msgs.push({role:'assistant',content:reply});
     rmTyping(tid2);
     addMsg('assistant',reply,sources);

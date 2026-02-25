@@ -460,29 +460,36 @@ async function syncKB(silent=false){
 
 async function pushToServer(docs){
   try{
-    // Trim to 100 chunks, reduce size further to ensure it fits
-    const trimmed = docs.map(d => ({
-      ...d,
-      chunks: (d.chunks||[]).slice(0, 100),
-      chunkCount: Math.min((d.chunks||[]).length, 100)
-    }));
-    const payload = JSON.stringify({documents:trimmed});
-    const sizeKB = Math.round(payload.length/1024);
-    document.getElementById('progLbl').textContent=`Uploading ${sizeKB}KB to server…`;
+    // Start with 50 chunks, reduce if payload too large
+    let maxChunks = 50;
+    let trimmed, payload;
     
-    const res=await fetch('/api/kb',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:payload
+    do {
+      trimmed = docs.map(d => ({
+        ...d,
+        chunks: (d.chunks||[]).slice(0, maxChunks),
+        chunkCount: Math.min((d.chunks||[]).length, maxChunks)
+      }));
+      payload = JSON.stringify({documents:trimmed});
+      if(payload.length > 800000) maxChunks = Math.floor(maxChunks * 0.6);
+    } while(payload.length > 800000 && maxChunks > 5);
+
+    const sizeKB = Math.round(payload.length/1024);
+    document.getElementById('progLbl').textContent=`Uploading ${sizeKB}KB (${maxChunks} chunks) to server…`;
+    
+    const res = await fetch('/api/kb', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: payload
     });
     
     const responseText = await res.text();
     let data;
-    try { data = JSON.parse(responseText); } 
-    catch(e) { throw new Error('Server returned invalid response: '+responseText.slice(0,100)); }
+    try { data = JSON.parse(responseText); }
+    catch(e) { throw new Error('Bad server response ('+res.status+'): '+responseText.slice(0,200)); }
     
-    if(!res.ok) throw new Error('Server error '+res.status+': '+(data.error||responseText.slice(0,100)));
-    if(!data.ok) throw new Error('KB error: '+(data.error||JSON.stringify(data)));
+    if(!res.ok) throw new Error('Server '+res.status+': '+(data.error||'unknown error'));
+    if(!data.ok) throw new Error('KB rejected: '+(data.error||JSON.stringify(data)));
     return true;
   }catch(e){
     showToast('Upload failed: '+e.message,'error');

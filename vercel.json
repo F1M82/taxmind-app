@@ -1,28 +1,14 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/*.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "public/**",
-      "use": "@vercel/static"
-    }
-  ],
+  "functions": {
+    "claude.js": { "runtime": "@vercel/node@3" },
+    "kb.js":     { "runtime": "@vercel/node@3" },
+    "search.js": { "runtime": "@vercel/node@3" }
+  },
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1.js",
-      "headers": {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type"
-      }
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/public/$1"
-    }
+    { "src": "/api/claude", "dest": "/claude.js" },
+    { "src": "/api/kb",     "dest": "/kb.js"     },
+    { "src": "/api/search", "dest": "/search.js" },
+    { "src": "/(.*)",       "dest": "/index.html" }
   ]
 }

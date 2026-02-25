@@ -460,24 +460,33 @@ async function syncKB(silent=false){
 
 async function pushToServer(docs){
   try{
-    // Keep only first 200 chunks per doc to stay within Upstash free tier limits
-    // 200 chunks x 1500 chars = ~300KB per doc, well within limits
+    // Trim to 100 chunks, reduce size further to ensure it fits
     const trimmed = docs.map(d => ({
       ...d,
-      chunks: (d.chunks||[]).slice(0, 200),
-      chunkCount: Math.min((d.chunks||[]).length, 200)
+      chunks: (d.chunks||[]).slice(0, 100),
+      chunkCount: Math.min((d.chunks||[]).length, 100)
     }));
-    document.getElementById('progLbl').textContent='Uploading to server…';
+    const payload = JSON.stringify({documents:trimmed});
+    const sizeKB = Math.round(payload.length/1024);
+    document.getElementById('progLbl').textContent=`Uploading ${sizeKB}KB to server…`;
+    
     const res=await fetch('/api/kb',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({documents:trimmed})
+      body:payload
     });
-    if(!res.ok) throw new Error('Server error '+res.status);
-    const data=await res.json();
-    return data.ok;
+    
+    const responseText = await res.text();
+    let data;
+    try { data = JSON.parse(responseText); } 
+    catch(e) { throw new Error('Server returned invalid response: '+responseText.slice(0,100)); }
+    
+    if(!res.ok) throw new Error('Server error '+res.status+': '+(data.error||responseText.slice(0,100)));
+    if(!data.ok) throw new Error('KB error: '+(data.error||JSON.stringify(data)));
+    return true;
   }catch(e){
-    showToast('Upload error: '+e.message,'error');
+    showToast('Upload failed: '+e.message,'error');
+    console.error('pushToServer error:', e);
     return false;
   }
 }

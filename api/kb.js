@@ -19,10 +19,10 @@ async function redisSet(key, value) {
   if (!url || !token) throw new Error('KV not configured');
   const serialized = JSON.stringify(value);
   // Split into multiple keys if too large
-  if (serialized.length > 800000) {
+  if (serialized.length > 400000) {
     // Store in parts
     const parts = [];
-    const chunkSize = 700000;
+    const chunkSize = 350000;
     for (let i = 0; i < serialized.length; i += chunkSize) {
       parts.push(serialized.slice(i, i + chunkSize));
     }

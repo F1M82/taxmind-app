@@ -4,15 +4,3 @@
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
-```
-
----
-
-Your final structure should be:
-```
-api/
-  claude.js
-  kb.js
-  search.js
-index.html
-vercel.json

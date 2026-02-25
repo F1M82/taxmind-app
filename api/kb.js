@@ -1,8 +1,8 @@
 const KB_KEY = 'taxmind_kb_v1';
 
 async function redisGet(key) {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url = process.env.KV_REST_API_URL;
+  const token = process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null;
   const res = await fetch(`${url}/get/${key}`, {
     headers: { Authorization: `Bearer ${token}` }
@@ -14,8 +14,8 @@ async function redisGet(key) {
 }
 
 async function redisSet(key, value) {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url = process.env.KV_REST_API_URL;
+  const token = process.env.KV_REST_API_TOKEN;
   if (!url || !token) throw new Error('Upstash not configured. Go to Vercel Storage and connect Upstash Redis to this project.');
   const res = await fetch(`${url}/set/${key}`, {
     method: 'POST',

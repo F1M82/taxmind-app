@@ -1,8 +1,18 @@
 {
   "rewrites": [
-    { "source": "/api/claude", "destination": "/claude.js" },
-    { "source": "/api/kb",     "destination": "/kb.js"     },
-    { "source": "/api/search", "destination": "/search.js" },
-    { "source": "/(.*)",       "destination": "/index.html" }
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
+```
+
+---
+
+Your final structure should be:
+```
+api/
+  claude.js
+  kb.js
+  search.js
+index.html
+vercel.json

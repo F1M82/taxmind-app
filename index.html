@@ -664,23 +664,22 @@ KNOWLEDGE BASE:\n{kbctx}
 WEB RESULTS:\n{webctx}`;
 
 // ── WEB SEARCH ─────────────────────────────────────────────
-let webSearchEnabled = true;
+
 
 async function webSearch(query) {
-  if (!webSearchEnabled) return { results: [], source: 'disabled' };
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
     const r = await fetch('/api/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query })
+      body: JSON.stringify({ query }),
+      signal: controller.signal
     });
+    clearTimeout(timeout);
     if (!r.ok) return { results: [], source: 'error' };
     const d = await r.json();
-    if (!d.ok) {
-      // Web search not configured — disable silently
-      webSearchEnabled = false;
-      return { results: [], source: 'not_configured' };
-    }
+    if (!d.ok) return { results: [], source: 'not_configured' };
     return { results: d.results || [], source: 'web' };
   } catch(e) {
     return { results: [], source: 'error' };

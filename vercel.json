@@ -1,14 +1,8 @@
 {
-  "version": 2,
-  "functions": {
-    "claude.js": { "runtime": "@vercel/node@3" },
-    "kb.js":     { "runtime": "@vercel/node@3" },
-    "search.js": { "runtime": "@vercel/node@3" }
-  },
-  "routes": [
-    { "src": "/api/claude", "dest": "/claude.js" },
-    { "src": "/api/kb",     "dest": "/kb.js"     },
-    { "src": "/api/search", "dest": "/search.js" },
-    { "src": "/(.*)",       "dest": "/index.html" }
+  "rewrites": [
+    { "source": "/api/claude", "destination": "/claude.js" },
+    { "source": "/api/kb",     "destination": "/kb.js"     },
+    { "source": "/api/search", "destination": "/search.js" },
+    { "source": "/(.*)",       "destination": "/index.html" }
   ]
 }

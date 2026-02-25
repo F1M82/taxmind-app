@@ -454,15 +454,29 @@ async function syncKB(silent=false){
 
 async function pushToServer(docs){
   try{
-    const res=await fetch('/api/kb',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({documents:docs})
-    });
-    const data=await res.json();
-    return data.ok;
+    // Split chunks into batches of 50 to stay under Upstash 1MB request limit
+    for(const doc of docs){
+      const BATCH=50;
+      const allChunks=doc.chunks||[];
+      const batches=[];
+      for(let i=0;i<allChunks.length;i+=BATCH) batches.push(allChunks.slice(i,i+BATCH));
+      
+      for(let b=0;b<batches.length;b++){
+        const partial={...doc, chunks:batches[b], chunkBatch:b, totalBatches:batches.length};
+        document.getElementById('progLbl').textContent=`Uploading batch ${b+1}/${batches.length}…`;
+        const res=await fetch('/api/kb',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({documents:[partial]})
+        });
+        if(!res.ok) throw new Error('Upload failed on batch '+(b+1));
+        const data=await res.json();
+        if(!data.ok) throw new Error(data.error||'Server rejected batch '+(b+1));
+      }
+    }
+    return true;
   }catch(e){
-    showToast('Could not sync to server: '+e.message,'error');
+    showToast('Upload error: '+e.message,'error');
     return false;
   }
 }

@@ -460,27 +460,22 @@ async function syncKB(silent=false){
 
 async function pushToServer(docs){
   try{
-    // Split chunks into batches of 50 to stay under Upstash 1MB request limit
-    for(const doc of docs){
-      const BATCH=50;
-      const allChunks=doc.chunks||[];
-      const batches=[];
-      for(let i=0;i<allChunks.length;i+=BATCH) batches.push(allChunks.slice(i,i+BATCH));
-      
-      for(let b=0;b<batches.length;b++){
-        const partial={...doc, chunks:batches[b], chunkBatch:b, totalBatches:batches.length};
-        document.getElementById('progLbl').textContent=`Uploading batch ${b+1}/${batches.length}…`;
-        const res=await fetch('/api/kb',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({documents:[partial]})
-        });
-        if(!res.ok) throw new Error('Upload failed on batch '+(b+1));
-        const data=await res.json();
-        if(!data.ok) throw new Error(data.error||'Server rejected batch '+(b+1));
-      }
-    }
-    return true;
+    // Keep only first 200 chunks per doc to stay within Upstash free tier limits
+    // 200 chunks x 1500 chars = ~300KB per doc, well within limits
+    const trimmed = docs.map(d => ({
+      ...d,
+      chunks: (d.chunks||[]).slice(0, 200),
+      chunkCount: Math.min((d.chunks||[]).length, 200)
+    }));
+    document.getElementById('progLbl').textContent='Uploading to server…';
+    const res=await fetch('/api/kb',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({documents:trimmed})
+    });
+    if(!res.ok) throw new Error('Server error '+res.status);
+    const data=await res.json();
+    return data.ok;
   }catch(e){
     showToast('Upload error: '+e.message,'error');
     return false;
@@ -595,7 +590,7 @@ async function extractPDF(file){
 function chunk(text){
   const s=text.replace(/\n+/g,' ').split(/(?<=[.!?])\s+/);
   const out=[];let cur=[];let len=0;
-  for(const x of s){if(len+x.length>3200&&cur.length){out.push(cur.join(' '));cur=cur.slice(-2);len=cur.reduce((a,c)=>a+c.length,0);}cur.push(x);len+=x.length;}
+  for(const x of s){if(len+x.length>1500&&cur.length){out.push(cur.join(' '));cur=cur.slice(-2);len=cur.reduce((a,c)=>a+c.length,0);}cur.push(x);len+=x.length;}
   if(cur.length)out.push(cur.join(' '));
   return out.filter(c=>c.trim().length>50);
 }

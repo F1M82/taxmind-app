@@ -88,14 +88,14 @@ html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;backgroun
 .chip{padding:7px 14px;background:white;border:1px solid var(--border);border-radius:18px;font-size:11.5px;color:var(--text-mid);cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif}
 .chip:hover{border-color:var(--gold);color:var(--gold);background:var(--gold-pale)}
 
-.msg-row{display:flex;padding:4px 20px;gap:10px;animation:msgIn .18s ease}
+.msg-row{display:flex;padding:4px 12px;gap:10px;animation:msgIn .18s ease}
 @keyframes msgIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 .msg-row.user{flex-direction:row-reverse}
 .av{width:28px;height:28px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;margin-top:4px}
 .av.ai{background:var(--ink);color:var(--gold-light)}
 .av.user{background:var(--parchment-dark);border:1px solid var(--border);font-size:11px}
-.bubble{max-width:76%;padding:12px 16px;border-radius:11px;font-size:13px;line-height:1.76}
-.bubble.ai{background:white;border:1px solid var(--border);color:var(--text);border-top-left-radius:3px;box-shadow:var(--shadow)}
+.bubble{max-width:92%;padding:12px 16px;border-radius:11px;font-size:13px;line-height:1.76}
+.bubble.ai{background:white;border:1px solid var(--border);color:var(--text);border-top-left-radius:3px;box-shadow:var(--shadow);width:100%}
 .bubble.user{background:var(--ink);color:rgba(255,255,255,.87);border-top-right-radius:3px}
 .b-meta{font-size:9.5px;color:var(--text-dim);margin-top:4px;font-family:'JetBrains Mono',monospace}
 .msg-row.user .b-meta{text-align:right}
@@ -274,7 +274,7 @@ html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;backgroun
           <div class="welcome-seal">⚖️</div>
           <h1>TaxMind is Ready</h1>
           <p>Your firm's AI assistant for the new Income Tax Act 2025. Every answer cites both the new and old Act sections.</p>
-          <div class="kb-notice" id="kbNotice">⏳ Loading shared knowledge base…</div>
+          <div class="kb-notice" id="kbNotice">✅ Ready — ask your tax question below</div>
           <div class="chips" id="chips"></div>
         </div>
       </div>
@@ -283,7 +283,13 @@ html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;backgroun
           <textarea class="input-ta" id="chatInput" rows="1" placeholder="Ask anything about Income Tax Act 2025…" onkeydown="hkey(event)" oninput="resize(this)"></textarea>
           <button class="send-btn" id="sendBtn" onclick="sendChat()" disabled>↑</button>
         </div>
-        <div class="input-hint">Enter to send · Shift+Enter new line · Always cites new & old Act sections</div>
+        <div class="input-hint" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <span>Enter to send · Shift+Enter new line</span>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--text-dim)">
+            <input type="checkbox" id="webToggle" checked onchange="toggleWeb(this)" style="accent-color:var(--teal)"/>
+            🌐 Web search
+          </label>
+        </div>
       </div>
     </div>
 
@@ -420,7 +426,12 @@ const SECS=['80C','80D','10(38)','148','148A','147','263','68','69A','54','54F',
 // ── INIT ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
   renderQQ(); renderPills();
-  syncKB(true); // silent initial load
+  // Show app immediately, load KB in background
+  updateKBUI(); // render UI with empty KB first
+  setTimeout(async()=>{
+    await syncKB(true);
+    loadChunksBackground();
+  }, 100);
 });
 
 // ── SHARED KB SYNC ─────────────────────────────────────────
@@ -430,17 +441,20 @@ async function syncKB(silent=false){
     document.getElementById('syncBtn').textContent='Syncing…';
   }
   try{
+    // Load metadata only — instant
     const res=await fetch('/api/kb');
     if(!res.ok) throw new Error('Server error '+res.status);
     const data=await res.json();
-    // Server returns metadata only — we need full chunks for retrieval
-    // Full chunks are stored in sharedKB after indexing from this device
-    // On other devices: chunks come from server if stored there, or we show "loaded from server"
     if(data.documents){
-      // Merge: prefer server data
-      sharedKB=data.documents;
+      sharedKB=data.documents.map(d=>({...d,chunks:[]}));
+      _index=null; _indexedKBLen=0; chunksLoaded=false;
       updateKBUI();
-      if(!silent) showToast(`Synced — ${sharedKB.length} shared documents`,'success');
+      const notice=document.getElementById('kbNotice');
+      if(sharedKB.length>0){
+        if(notice) notice.textContent=`✅ ${sharedKB.length} document${sharedKB.length>1?'s':''} found — loading chunks in background…`;
+      }
+      if(!silent) showToast(`Synced — ${sharedKB.length} docs ready`,'success');
+      if(!silent) loadChunksBackground();
     }
   }catch(e){
     if(!silent) showToast('Sync failed: '+e.message,'error');
@@ -452,17 +466,99 @@ async function syncKB(silent=false){
   }
 }
 
+// ── CHUNK CACHE ────────────────────────────────────────────
+let chunksLoaded=false;
+let chunksLoading=false;
+const CACHE_KEY='tm_chunks_cache';
+const CACHE_VER_KEY='tm_chunks_ver';
+
+async function getCacheVersion(){
+  // Version = sorted doc IDs + chunkCounts joined
+  return sharedKB.map(d=>d.id+':'+d.chunkCount).sort().join('|');
+}
+
+async function loadChunksBackground(){
+  if(chunksLoaded||chunksLoading) return;
+  chunksLoading=true;
+  try{
+    document.getElementById('kbLabel').textContent='Loading chunks…';
+    const res=await fetch('/api/kb?chunks=1');
+    if(!res.ok) throw new Error('chunks load failed '+res.status);
+    const data=await res.json();
+    if(data.documents && data.documents.length){
+      // Merge chunks into existing sharedKB entries by id
+      data.documents.forEach(serverDoc => {
+        const idx = sharedKB.findIndex(d => d.id === serverDoc.id);
+        if(idx >= 0){
+          sharedKB[idx] = serverDoc; // replace with full doc including chunks
+        } else {
+          sharedKB.push(serverDoc);
+        }
+      });
+      _index=null; _indexedKBLen=0;
+      chunksLoaded=true;
+      const totalChunks = sharedKB.reduce((s,d)=>s+(d.chunks||[]).length,0);
+      document.getElementById('kbLabel').textContent=`${sharedKB.length} docs · ${totalChunks.toLocaleString()} chunks ready`;
+      const notice=document.getElementById('kbNotice');
+      if(notice) notice.textContent=`✅ ${sharedKB.length} documents · ${totalChunks.toLocaleString()} chunks indexed and ready`;
+    }
+  }catch(e){
+    console.warn('chunk load error',e);
+    document.getElementById('kbLabel').textContent='Load failed — refresh page';
+  }
+  chunksLoading=false;
+}
+
+async function ensureChunks(){
+  if(chunksLoaded) return;
+  if(!chunksLoading) loadChunksBackground();
+  // Wait for chunks to load (max 30s)
+  let tries=0;
+  while(!chunksLoaded && tries<60){
+    await new Promise(r=>setTimeout(r,500));
+    tries++;
+  }
+}
+
 async function pushToServer(docs){
   try{
-    const res=await fetch('/api/kb',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({documents:docs})
-    });
-    const data=await res.json();
-    return data.ok;
+    const PAGE = 50;
+    for(const doc of docs){
+      const allChunks = doc.chunks || [];
+      const totalPages = Math.ceil(allChunks.length / PAGE);
+      
+      for(let p = 0; p < totalPages; p++){
+        const pageChunks = allChunks.slice(p * PAGE, (p+1) * PAGE);
+        const isFirst = p === 0;
+        const payload = JSON.stringify({documents:[{
+          ...doc,
+          chunks: pageChunks,
+          chunkCount: allChunks.length, // always send total count
+          chunkPage: p,
+          totalPages
+        }]});
+        
+        document.getElementById('progLbl').textContent=
+          `Uploading page ${p+1}/${totalPages} (${allChunks.length} total chunks)…`;
+        document.getElementById('pFill').style.width = (92 + (8*(p+1)/totalPages)) + '%';
+        
+        const res = await fetch('/api/kb', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: payload
+        });
+        const responseText = await res.text();
+        let data;
+        try { data = JSON.parse(responseText); }
+        catch(e) { throw new Error('Bad response p'+p+': '+responseText.slice(0,100)); }
+        if(!res.ok) throw new Error('Server '+res.status+' p'+p+': '+(data.error||'unknown'));
+        if(!data.ok) throw new Error('KB error p'+p+': '+(data.error||JSON.stringify(data)));
+      }
+    }
+    return true;
   }catch(e){
-    showToast('Could not sync to server: '+e.message,'error');
+    showToast('Upload failed: '+e.message,'error');
+    console.error('pushToServer error:', e);
     return false;
   }
 }
@@ -575,7 +671,7 @@ async function extractPDF(file){
 function chunk(text){
   const s=text.replace(/\n+/g,' ').split(/(?<=[.!?])\s+/);
   const out=[];let cur=[];let len=0;
-  for(const x of s){if(len+x.length>3200&&cur.length){out.push(cur.join(' '));cur=cur.slice(-2);len=cur.reduce((a,c)=>a+c.length,0);}cur.push(x);len+=x.length;}
+  for(const x of s){if(len+x.length>1500&&cur.length){out.push(cur.join(' '));cur=cur.slice(-2);len=cur.reduce((a,c)=>a+c.length,0);}cur.push(x);len+=x.length;}
   if(cur.length)out.push(cur.join(' '));
   return out.filter(c=>c.trim().length>50);
 }
@@ -625,48 +721,247 @@ async function indexDoc(){
   document.getElementById('idxBtn').disabled=false;
 }
 
-// ── RAG ────────────────────────────────────────────────────
-function embed(t){
-  const f={};
-  t.toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(Boolean).forEach(w=>{f[w]=(f[w]||0)+1;});
-  return['section','income','tax','act','deduction','exemption','capital','gain','tds','return','assessment','appeal','penalty','interest','reassessment','notice','reply','order','tribunal','court','judgment','case','provision','limit','rate','new','old','amendment','circular','cbdt','rule','salary','business','property','investment','benefit','claim','taxpayer','assessee','officer','commissioner','addition','disallowance','unexplained','cash','credit','deposit','purchase','evidence','proof','finance','notification','search','survey','dividend','royalty','fees'].map(w=>f[w]||0);
-}
-function cos(a,b){let d=0,na=0,nb=0;for(let i=0;i<a.length;i++){d+=a[i]*b[i];na+=a[i]*a[i];nb+=b[i]*b[i];}return d/(Math.sqrt(na)*Math.sqrt(nb)+1e-8);}
+// ── BM25 SEARCH ───────────────────────────────────────────
+// Based on BM25 algorithm - no embeddings, no cosine similarity
+// Field-weighted: section numbers > headings > body text
 
-function getCtx(q,k=6){
-  const all=KB();
-  if(!all.length)return'';
-  const qe=embed(q);
-  const sc=[];
-  all.forEach(doc=>(doc.chunks||[]).forEach(c=>sc.push({c,doc,s:cos(qe,embed(c))})));
-  sc.sort((a,b)=>b.s-a.s);
-  return sc.slice(0,k).map((r,i)=>`[${i+1}] ${r.doc.title} (${r.doc.category})\n${r.c}`).join('\n\n---\n\n');
+const BM25_K1 = 1.5;
+const BM25_B  = 0.75;
+
+function tokenize(t){
+  return t.toLowerCase()
+    .replace(/[^a-z0-9\s]/g,' ')
+    .split(/\s+/)
+    .filter(w => w.length > 1);
+}
+
+function extractSectionNums(t){
+  // Extract patterns like 192, 194A, 80C, 148A(b) etc.
+  const nums = [];
+  const m1 = t.match(/(?:section|sec\.?|s\.)\s*([0-9]+[a-z]*)/gi) || [];
+  m1.forEach(x => { const n = x.match(/([0-9]+[a-z]*)/i); if(n) nums.push(n[1].toLowerCase()); });
+  const m2 = t.match(/\b([0-9]{2,3}[a-zA-Z]{0,3})\b/g) || [];
+  m2.forEach(x => nums.push(x.toLowerCase()));
+  return [...new Set(nums)];
+}
+
+// Build BM25 index from all chunks
+function buildIndex(docs){
+  const index = { chunks:[], df:{}, avgLen:0 };
+  let totalLen = 0;
+  docs.forEach(doc => {
+    (doc.chunks||[]).forEach(c => {
+      const tokens = tokenize(c);
+      const tf = {};
+      tokens.forEach(t => { tf[t] = (tf[t]||0) + 1; });
+      index.chunks.push({ text:c, doc, tf, len:tokens.length, secs: extractSectionNums(c) });
+      totalLen += tokens.length;
+      Object.keys(tf).forEach(t => { index.df[t] = (index.df[t]||0) + 1; });
+    });
+  });
+  index.avgLen = totalLen / (index.chunks.length || 1);
+  index.N = index.chunks.length;
+  return index;
+}
+
+let _index = null;
+let _indexedKBLen = 0;
+
+function getIndex(){
+  const all = KB();
+  const totalChunks = all.reduce((s,d) => s + (d.chunks||[]).length, 0);
+  if(!_index || _indexedKBLen !== totalChunks){
+    _index = buildIndex(all);
+    _indexedKBLen = totalChunks;
+  }
+  return _index;
+}
+
+function bm25score(chunk, queryTokens, qSecs, index){
+  let score = 0;
+  const N = index.N;
+  const avgLen = index.avgLen;
+
+  queryTokens.forEach(qt => {
+    const df = index.df[qt] || 0;
+    if(!df) return;
+    const idf = Math.log((N - df + 0.5) / (df + 0.5) + 1);
+    const tf = chunk.tf[qt] || 0;
+    const norm = tf * (BM25_K1 + 1) / (tf + BM25_K1 * (1 - BM25_B + BM25_B * chunk.len / avgLen));
+    score += idf * norm;
+  });
+
+  // Strong boost for section number matches
+  if(qSecs.length){
+    const matches = qSecs.filter(s => chunk.secs.includes(s));
+    score += matches.length * 8.0; // heavy boost - section match is highly relevant
+  }
+
+  return score;
+}
+
+function getCtx(q, k=8){
+  const all = KB();
+  if(!all.length) return '';
+  const index = getIndex();
+  const qTokens = tokenize(q);
+  const qSecs = extractSectionNums(q);
+
+  const scored = index.chunks.map(chunk => ({
+    chunk,
+    score: bm25score(chunk, qTokens, qSecs, index)
+  }));
+
+  scored.sort((a,b) => b.score - a.score);
+
+  // Ensure at least ceil(k/2) results from EACH document (old + new Act)
+  const seen = new Set();
+  const results = [];
+  const perDoc = Math.ceil(k/2);
+
+  // Group by doc
+  const byDoc = {};
+  scored.forEach(({chunk, score}) => {
+    const id = chunk.doc.id;
+    if(!byDoc[id]) byDoc[id] = [];
+    byDoc[id].push({chunk, score});
+  });
+
+  // Take top perDoc chunks from each doc
+  Object.values(byDoc).forEach(docChunks => {
+    let taken = 0;
+    for(const {chunk, score} of docChunks){
+      if(taken >= perDoc) break;
+      if(!seen.has(chunk.text)){
+        results.push({chunk, score});
+        seen.add(chunk.text);
+        taken++;
+      }
+    }
+  });
+
+  // Sort results by score and trim to k
+  results.sort((a,b) => b.score - a.score);
+
+  return results.slice(0, k)
+    .map((r,i) => `[${i+1}] ${r.chunk.doc.title} (${r.chunk.doc.category})\n${r.chunk.text}`)
+    .join('\n\n---\n\n');
 }
 
 // ── PROMPTS ────────────────────────────────────────────────
 const SYS_TAX=`You are TaxMind — Tax Intelligence Assistant for expert Indian tax & finance professionals. Expertise in both ITA 1961 and ITA 2025 (effective 1 Apr 2026).
-MANDATORY: 1) Always cite BOTH new Act 2025 section AND old Act 1961 equivalent. 2) State what changed/added/removed. 3) Cite CBDT circulars with number+date. 4) Integrate case laws: "The Hon'ble [Court] in [Case] [Citation] held that [ratio]." 5) Never invent section numbers. 6) End with ## References.
-CONTEXT:\n{ctx}`;
+
+MANDATORY RULES:
+1) Always cite BOTH new Act 2025 section AND old Act 1961 equivalent side by side.
+2) For ANY comparison query, ALWAYS use a markdown table with columns: Provision | ITA 1961 Section | ITA 2025 Section | Change/Comments.
+3) State what changed/added/removed in every row.
+4) Cite CBDT circulars with number+date when relevant.
+5) Integrate case laws: "The Hon'ble [Court] in [Case] [Citation] held that [ratio]."
+6) Never invent section numbers — if unsure, say "Verify in Act".
+7) End with ## References listing all sources.
+8) Use tables for comparisons, structured headings for explanations — never use plain bullet lists for comparative analysis.
+
+CRITICAL — ITA 2025 RENUMBERING: The new Act completely renumbers all sections. Key mappings:
+- TDS provisions: Old ss.192-206CCA → New Act Chapter XIX-A (approx. ss.270-320)
+- Capital gains: Old ss.45-55A → New Act Chapter VI (approx. ss.67-80)
+- Deductions 80C-80U: New Act Chapter VIII (approx. ss.123-160)
+- Assessment/reassessment: Old ss.143-148A → New Act Chapter XIV (approx. ss.195-230)
+- Business income: Old ss.28-44DA → New Act Chapter IV (approx. ss.18-65)
+When KB context shows "Verify in Act" or missing new Act sections, use your training knowledge of ITA 2025 structure to provide the best answer, clearly marking it as "per ITA 2025 structure" vs "confirmed from uploaded document".
+
+OUTPUT FORMAT FOR COMPARISON QUERIES:
+## [Topic]: ITA 1961 vs ITA 2025
+| Provision | ITA 1961 | Section (1961) | ITA 2025 | Section (2025) | Key Change |
+|-----------|----------|----------------|----------|----------------|------------|
+| [row]     | [detail] | s. XX          | [detail] | s. YY          | [change]   |
+
+KNOWLEDGE BASE CONTEXT (from uploaded documents):
+{kbctx}
+
+WEB SEARCH RESULTS (recent circulars, notifications, judgments):
+{webctx}`;
 
 const SYS_NOTICE=`You are TaxMind — senior tax advocate drafting replies to Indian income tax notices.
 Extract: ---NOTICE SUMMARY---\nNotice Type:\nAssessment Year:\nSection Cited:\nNature of Addition/Demand:\nAmount: ₹\nReply Deadline: (flag URGENT if <15 days)\nIssuing Authority:
 Then generate: ---DRAFT REPLY---\n[Date]\nTo, The [Designation], [Ward], Income Tax Dept\nSub: Reply to Notice u/s [X] for AY [Y] — [CLIENT NAME], PAN: [PAN]\n\n**I. INTRODUCTORY SUBMISSION**\n[acknowledge]\n**II. GROUNDS OF OBJECTION**\nGround 1: [ground with elaboration]\n**III. FACTUAL SUBMISSIONS**\n[facts]\n**IV. LEGAL SUBMISSIONS**\n4.1 [cite new+old Act sections]\n4.2 [case law with ratio and applicability]\n**V. PRAYER**\n(a) [relief]\n\nYours faithfully, [Name]\n---ENCLOSURES---\n---CASE LAWS CITED---
-CONTEXT:\n{ctx}`;
+KNOWLEDGE BASE:\n{kbctx}
+WEB RESULTS:\n{webctx}`;
 
 const SYS_CR=`You are TaxMind's Section Cross-Reference engine.
-Structure:\n## Section Cross-Reference: [Topic]\n### 📘 Old Act (ITA 1961)\n**Section:** | **Heading:**\n[provisions]\n### 📗 New Act (ITA 2025)\n**Section:** | **Heading:**\n[provisions]\n### 🔄 What Changed\n| Aspect | Old Act | New Act |\n|--------|---------|--------|\n### ➕ New / ➖ Removed\n### ⚡ Effective Date\n### 📌 Practical Note\n## References\nIMPORTANT: If uncertain of new Act section, say so clearly.
-CONTEXT:\n{ctx}`;
+
+ALWAYS output in this exact structure:
+## Section Cross-Reference: [Topic]
+
+### Summary Table
+| Aspect | ITA 1961 | Section (1961) | ITA 2025 | Section (2025) | Change |
+|--------|----------|----------------|----------|----------------|--------|
+| [row]  | [detail] | s. XX | [detail] | s. YY | Retained/Renumbered/Amended/New/Removed |
+
+### 📘 Old Act Detail (ITA 1961)
+Key provisions with section numbers from uploaded documents.
+
+### 📗 New Act Detail (ITA 2025)
+Key provisions with section numbers from uploaded documents.
+
+### ⚡ Effective Date & Practical Impact
+
+## References
+IMPORTANT: Use ONLY section numbers found in uploaded documents. If uncertain write "Verify in Act".
+KNOWLEDGE BASE:
+{kbctx}
+WEB RESULTS:
+{webctx}`;
+
+// ── WEB SEARCH ─────────────────────────────────────────────
+
+
+async function webSearch(query) {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const r = await fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    if (!r.ok) return { results: [], source: 'error' };
+    const d = await r.json();
+    if (!d.ok) return { results: [], source: 'not_configured' };
+    return { results: d.results || [], source: 'web' };
+  } catch(e) {
+    return { results: [], source: 'error' };
+  }
+}
+
+function formatWebResults(results) {
+  if (!results.length) return 'No recent web results found.';
+  return results.map((r, i) =>
+    `[W${i+1}] ${r.title}\nURL: ${r.url}\n${r.snippet}${r.published ? '\nDate: '+r.published : ''}`
+  ).join('\n\n');
+}
+
+// ── WEB TOGGLE ─────────────────────────────────────────────
+function toggleWeb(el){ localStorage.setItem('tm_web', el.checked?'1':'0'); }
+document.addEventListener('DOMContentLoaded',()=>{
+  const saved = localStorage.getItem('tm_web');
+  if(saved==='0'){ const t=document.getElementById('webToggle'); if(t) t.checked=false; }
+});
+function isWebOn(){ const t=document.getElementById('webToggle'); return t?t.checked:true; }
 
 // ── CLAUDE CALL (via secure proxy) ────────────────────────
-async function claude(sys,messages,ctx=''){
-  const s=sys.replace('{ctx}',ctx||'No documents in KB — answering from general knowledge of Indian tax law.');
-  const r=await fetch('/api/claude',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:MODEL,max_tokens:3000,system:s,messages})
+async function claude(sys, messages, kbctx='', webctx='', maxTokens=2000) {
+  const s = sys
+    .replace('{kbctx}', kbctx || 'No documents uploaded yet.')
+    .replace('{webctx}', webctx || 'Web search not available.');
+  const r = await fetch('/api/claude', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, system: s, messages })
   });
-  if(!r.ok){const e=await r.json();throw new Error(e.error||e.error?.message||'API error');}
-  return(await r.json()).content[0].text;
+  if (!r.ok) { const e = await r.json(); throw new Error(e.error || e.error?.message || 'API error'); }
+  return (await r.json()).content[0].text;
 }
 
 // ── MARKDOWN ───────────────────────────────────────────────
@@ -710,13 +1005,27 @@ async function sendChat(){
   msgs.push({role:'user',content:text});
   addMsg('user',text);
   inp.value='';inp.style.height='auto';document.getElementById('sendBtn').disabled=true;
-  const tid=showTyping();
+  const tid=showTyping(isWebOn()?'Searching KB + web…':'Searching KB…');
   try{
-    const ctx=getCtx(text);
-    const reply=await claude(SYS_TAX,msgs,ctx);
-    msgs.push({role:'assistant',content:reply});
+    // Load chunks if not yet loaded
+    await ensureChunks();
+    // KB retrieval always runs; web search only if toggle is on
+    const kbctx = getCtx(text);
+    let webData = { results: [] };
+    if(isWebOn()){
+      webData = await webSearch(text + ' income tax India 2025');
+    }
+    const webctx = formatWebResults(webData.results);
+    const sources = [];
+    if(KB().length) sources.push('📚 Knowledge Base');
+    if(webData.results.length) sources.push('🌐 Web ('+webData.results.length+' results)');
+
     rmTyping(tid);
-    addMsg('assistant',reply,KB().length?['Shared KB']:[]);
+    const tid2=showTyping('Generating answer…');
+    const reply=await claude(SYS_TAX,msgs,kbctx,webctx,2000);
+    msgs.push({role:'assistant',content:reply});
+    rmTyping(tid2);
+    addMsg('assistant',reply,sources);
   }catch(e){rmTyping(tid);addMsg('assistant','⚠️ '+e.message);showToast(e.message,'error');}
 }
 
@@ -725,18 +1034,19 @@ function addMsg(role,content,srcs=[]){
   const row=document.createElement('div');
   row.className='msg-row '+role;
   const now=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
-  const s=srcs.length?`<div style="margin-top:5px">${srcs.map(x=>`<span class="src-tag">📄 ${x}</span>`).join('')}</div>`:'';
+  const s=srcs.length?`<div style="margin-top:5px">${srcs.map(x=>`<span class="src-tag">${x}</span>`).join('')}</div>`:'';
   const b=role==='assistant'?`<div class="md">${md(content)}</div>`:content;
   row.innerHTML=`<div class="av ${role==='assistant'?'ai':'user'}">${role==='assistant'?'⚖':'👤'}</div><div><div class="bubble ${role==='assistant'?'ai':'user'}">${b}</div>${s}<div class="b-meta">${now}</div></div>`;
   area.appendChild(row);area.scrollTop=area.scrollHeight;
 }
 
 let tc=0;
-function showTyping(){
+function showTyping(label=''){
   const id='t'+(++tc);
   const area=document.getElementById('chatArea');
   const r=document.createElement('div');r.className='msg-row';r.id=id;
-  r.innerHTML=`<div class="av ai">⚖</div><div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+  const lbl=label?`<span style="font-size:11px;color:var(--text-dim);margin-left:8px">${label}</span>`:'';
+  r.innerHTML=`<div class="av ai">⚖</div><div style="display:flex;align-items:center"><div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>${lbl}</div>`;
   area.appendChild(r);area.scrollTop=area.scrollHeight;return id;
 }
 function rmTyping(id){const e=document.getElementById(id);if(e)e.remove();}
@@ -746,8 +1056,12 @@ async function analyzeNotice(){
   if(!text){showToast('Paste notice content first','error');return;}
   const btn=document.getElementById('analyzeBtn');btn.disabled=true;btn.textContent='Analyzing…';
   try{
-    const ctx=getCtx(text+' notice reply draft case law',8);
-    const reply=await claude(SYS_NOTICE,[{role:'user',content:'Analyze this income tax notice and generate a complete professional draft reply:\n\n'+text}],ctx);
+    await ensureChunks();
+    const [kbctx, webData] = await Promise.all([
+      Promise.resolve(getCtx(text+' notice reply draft case law',8)),
+      webSearch(text + ' income tax notice reply case law India')
+    ]);
+    const reply=await claude(SYS_NOTICE,[{role:'user',content:'Analyze this income tax notice and generate a complete professional draft reply:\n\n'+text}],kbctx,formatWebResults(webData.results));
     const sm=reply.match(/---NOTICE SUMMARY---([\s\S]*?)---DRAFT REPLY---/);
     if(sm){
       const lines=sm[1].trim().split('\n').filter(l=>l.includes(':'));
@@ -770,10 +1084,16 @@ async function lookup(){
   const k=document.getElementById('crKw').value.trim();
   if(!s&&!k){showToast('Enter a section or keyword','error');return;}
   const q=s?`Compare old ITA 1961 Section ${s} with new ITA 2025 equivalent.`:`ITA 2025 provisions on "${k}" vs old ITA 1961.`;
-  document.getElementById('crContent').innerHTML='<p style="color:var(--text-mid)">Looking up…</p>';
+  document.getElementById('crContent').innerHTML='<p style="color:var(--text-mid)">Searching KB and web…</p>';
   document.getElementById('crResult').style.display='block';
-  try{document.getElementById('crContent').innerHTML=md(await claude(SYS_CR,[{role:'user',content:q}],getCtx(q)));}
-  catch(e){document.getElementById('crContent').innerHTML=`<p style="color:var(--red)">Error: ${e.message}</p>`;}
+  try{
+    await ensureChunks();
+    const [kbctx, webData] = await Promise.all([
+      Promise.resolve(getCtx(q)),
+      webSearch(q + ' India income tax')
+    ]);
+    document.getElementById('crContent').innerHTML=md(await claude(SYS_CR,[{role:'user',content:q}],kbctx,formatWebResults(webData.results)));
+  }catch(e){document.getElementById('crContent').innerHTML=`<p style="color:var(--red)">Error: ${e.message}</p>`;}
 }
 
 function showToast(msg,type='success'){

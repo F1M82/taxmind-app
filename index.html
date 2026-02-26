@@ -88,14 +88,14 @@ html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;backgroun
 .chip{padding:7px 14px;background:white;border:1px solid var(--border);border-radius:18px;font-size:11.5px;color:var(--text-mid);cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif}
 .chip:hover{border-color:var(--gold);color:var(--gold);background:var(--gold-pale)}
 
-.msg-row{display:flex;padding:4px 20px;gap:10px;animation:msgIn .18s ease}
+.msg-row{display:flex;padding:4px 12px;gap:10px;animation:msgIn .18s ease}
 @keyframes msgIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 .msg-row.user{flex-direction:row-reverse}
 .av{width:28px;height:28px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;margin-top:4px}
 .av.ai{background:var(--ink);color:var(--gold-light)}
 .av.user{background:var(--parchment-dark);border:1px solid var(--border);font-size:11px}
-.bubble{max-width:76%;padding:12px 16px;border-radius:11px;font-size:13px;line-height:1.76}
-.bubble.ai{background:white;border:1px solid var(--border);color:var(--text);border-top-left-radius:3px;box-shadow:var(--shadow)}
+.bubble{max-width:92%;padding:12px 16px;border-radius:11px;font-size:13px;line-height:1.76}
+.bubble.ai{background:white;border:1px solid var(--border);color:var(--text);border-top-left-radius:3px;box-shadow:var(--shadow);width:100%}
 .bubble.user{background:var(--ink);color:rgba(255,255,255,.87);border-top-right-radius:3px}
 .b-meta{font-size:9.5px;color:var(--text-dim);margin-top:4px;font-family:'JetBrains Mono',monospace}
 .msg-row.user .b-meta{text-align:right}
@@ -679,7 +679,23 @@ function getCtx(q,k=6){
 
 // ── PROMPTS ────────────────────────────────────────────────
 const SYS_TAX=`You are TaxMind — Tax Intelligence Assistant for expert Indian tax & finance professionals. Expertise in both ITA 1961 and ITA 2025 (effective 1 Apr 2026).
-MANDATORY: 1) Always cite BOTH new Act 2025 section AND old Act 1961 equivalent. 2) State what changed/added/removed. 3) Cite CBDT circulars with number+date. 4) Integrate case laws: "The Hon'ble [Court] in [Case] [Citation] held that [ratio]." 5) Never invent section numbers. 6) End with ## References section listing all sources used.
+
+MANDATORY RULES:
+1) Always cite BOTH new Act 2025 section AND old Act 1961 equivalent side by side.
+2) For ANY comparison query, ALWAYS use a markdown table with columns: Provision | ITA 1961 Section | ITA 2025 Section | Change/Comments.
+3) State what changed/added/removed in every row.
+4) Cite CBDT circulars with number+date when relevant.
+5) Integrate case laws: "The Hon'ble [Court] in [Case] [Citation] held that [ratio]."
+6) Never invent section numbers — if unsure, say "Verify in Act".
+7) End with ## References listing all sources.
+8) Use tables for comparisons, structured headings for explanations — never use plain bullet lists for comparative analysis.
+
+OUTPUT FORMAT FOR COMPARISON QUERIES:
+## [Topic]: ITA 1961 vs ITA 2025
+| Provision | ITA 1961 | Section (1961) | ITA 2025 | Section (2025) | Key Change |
+|-----------|----------|----------------|----------|----------------|------------|
+| [row]     | [detail] | s. XX          | [detail] | s. YY          | [change]   |
+
 KNOWLEDGE BASE CONTEXT (from uploaded documents):
 {kbctx}
 
@@ -693,9 +709,29 @@ KNOWLEDGE BASE:\n{kbctx}
 WEB RESULTS:\n{webctx}`;
 
 const SYS_CR=`You are TaxMind's Section Cross-Reference engine.
-Structure:\n## Section Cross-Reference: [Topic]\n### 📘 Old Act (ITA 1961)\n**Section:** | **Heading:**\n[provisions]\n### 📗 New Act (ITA 2025)\n**Section:** | **Heading:**\n[provisions]\n### 🔄 What Changed\n| Aspect | Old Act | New Act |\n|--------|---------|--------|\n### ➕ New / ➖ Removed\n### ⚡ Effective Date\n### 📌 Practical Note\n## References\nIMPORTANT: If uncertain of new Act section, say so clearly.
-KNOWLEDGE BASE:\n{kbctx}
-WEB RESULTS:\n{webctx}`;
+
+ALWAYS output in this exact structure:
+## Section Cross-Reference: [Topic]
+
+### Summary Table
+| Aspect | ITA 1961 | Section (1961) | ITA 2025 | Section (2025) | Change |
+|--------|----------|----------------|----------|----------------|--------|
+| [row]  | [detail] | s. XX | [detail] | s. YY | Retained/Renumbered/Amended/New/Removed |
+
+### 📘 Old Act Detail (ITA 1961)
+Key provisions with section numbers from uploaded documents.
+
+### 📗 New Act Detail (ITA 2025)
+Key provisions with section numbers from uploaded documents.
+
+### ⚡ Effective Date & Practical Impact
+
+## References
+IMPORTANT: Use ONLY section numbers found in uploaded documents. If uncertain write "Verify in Act".
+KNOWLEDGE BASE:
+{kbctx}
+WEB RESULTS:
+{webctx}\`;
 
 // ── WEB SEARCH ─────────────────────────────────────────────
 

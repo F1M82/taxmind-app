@@ -436,14 +436,16 @@ async function syncKB(silent=false){
     document.getElementById('syncBtn').textContent='Syncing…';
   }
   try{
+    // Load metadata only — fast, no chunks
     const res=await fetch('/api/kb');
     if(!res.ok) throw new Error('Server error '+res.status);
     const data=await res.json();
     if(data.documents){
-      sharedKB=data.documents;
-      _index=null; _indexedKBLen=0; // reset BM25 index
+      // Store metadata (no chunks yet)
+      sharedKB=data.documents.map(d=>({...d, chunks:[]}));
+      _index=null; _indexedKBLen=0; chunksLoaded=false;
       updateKBUI();
-      if(!silent) showToast(`Synced — ${sharedKB.length} shared documents · ${sharedKB.reduce((s,d)=>s+(d.chunkCount||0),0)} chunks`,'success');
+      if(!silent) showToast(`Synced — ${sharedKB.length} docs ready`,'success');
     }
   }catch(e){
     if(!silent) showToast('Sync failed: '+e.message,'error');
@@ -453,6 +455,25 @@ async function syncKB(silent=false){
     document.getElementById('syncBtn').disabled=false;
     document.getElementById('syncBtn').textContent='Sync Now';
   }
+}
+
+// Load full chunks on demand (when first query is made)
+let chunksLoaded=false;
+let chunksLoading=false;
+async function ensureChunks(){
+  if(chunksLoaded||chunksLoading) return;
+  chunksLoading=true;
+  try{
+    const res=await fetch('/api/kb?chunks=1');
+    if(!res.ok) throw new Error('chunks load failed');
+    const data=await res.json();
+    if(data.documents){
+      sharedKB=data.documents;
+      _index=null; _indexedKBLen=0;
+      chunksLoaded=true;
+    }
+  }catch(e){ console.warn('chunk load error',e); }
+  chunksLoading=false;
 }
 
 async function pushToServer(docs){
@@ -926,6 +947,8 @@ async function sendChat(){
   inp.value='';inp.style.height='auto';document.getElementById('sendBtn').disabled=true;
   const tid=showTyping(isWebOn()?'Searching KB + web…':'Searching KB…');
   try{
+    // Load chunks if not yet loaded
+    await ensureChunks();
     // KB retrieval always runs; web search only if toggle is on
     const kbctx = getCtx(text);
     let webData = { results: [] };
@@ -973,6 +996,7 @@ async function analyzeNotice(){
   if(!text){showToast('Paste notice content first','error');return;}
   const btn=document.getElementById('analyzeBtn');btn.disabled=true;btn.textContent='Analyzing…';
   try{
+    await ensureChunks();
     const [kbctx, webData] = await Promise.all([
       Promise.resolve(getCtx(text+' notice reply draft case law',8)),
       webSearch(text + ' income tax notice reply case law India')
@@ -1003,6 +1027,7 @@ async function lookup(){
   document.getElementById('crContent').innerHTML='<p style="color:var(--text-mid)">Searching KB and web…</p>';
   document.getElementById('crResult').style.display='block';
   try{
+    await ensureChunks();
     const [kbctx, webData] = await Promise.all([
       Promise.resolve(getCtx(q)),
       webSearch(q + ' India income tax')

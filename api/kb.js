@@ -6,9 +6,7 @@ export default async function handler(req, res) {
 
   async function get(key) {
     try {
-      const r = await fetch(`${BASE}/get/${key}`, {
-        headers: { Authorization: `Bearer ${TOKEN}` }
-      });
+      const r = await fetch(`${BASE}/get/${key}`, { headers: { Authorization: `Bearer ${TOKEN}` } });
       const d = await r.json();
       if (!d || !d.result) return null;
       let v = d.result;
@@ -33,23 +31,30 @@ export default async function handler(req, res) {
     });
   }
 
-  function safeMeta(v) {
-    return Array.isArray(v) ? v : [];
+  const safeMeta = v => Array.isArray(v) ? v : [];
+
+  async function getAllChunks(id, pages) {
+    const results = await Promise.all(
+      Array.from({length: pages}, (_, i) => get(`tm_c_${id}_${i}`))
+    );
+    return results.flatMap(p => Array.isArray(p) ? p : []);
   }
 
   try {
+    // GET without ?chunks=1 → metadata only (fast, for sidebar/UI)
+    // GET with ?chunks=1 → full chunks (for search/query)
     if (req.method === 'GET') {
+      const withChunks = req.query.chunks === '1';
       const meta = safeMeta(await get('tm_meta'));
-      // Fetch ALL chunk pages in parallel for speed
+
+      if (!withChunks) {
+        // Return metadata only — no chunks, very fast
+        return res.status(200).json({ ok: true, documents: meta, count: meta.length });
+      }
+
+      // Return full chunks for search
       const docs = await Promise.all(meta.map(async m => {
-        const pages = m.pages || 1;
-        // Fetch all pages in parallel
-        const pagePromises = [];
-        for (let i = 0; i < pages; i++) {
-          pagePromises.push(get(`tm_c_${m.id}_${i}`));
-        }
-        const pageResults = await Promise.all(pagePromises);
-        const chunks = pageResults.flatMap(p => Array.isArray(p) ? p : []);
+        const chunks = await getAllChunks(m.id, m.pages || 1);
         return { ...m, chunks, chunkCount: chunks.length };
       }));
       return res.status(200).json({ ok: true, documents: docs, count: docs.length });
@@ -88,11 +93,7 @@ export default async function handler(req, res) {
       if (!id) return res.status(400).json({ error: 'need id' });
       const meta = safeMeta(await get('tm_meta'));
       const doc = meta.find(m => m.id === id);
-      if (doc) {
-        const delPromises = [];
-        for (let i = 0; i < (doc.pages || 1); i++) delPromises.push(del(`tm_c_${id}_${i}`));
-        await Promise.all(delPromises);
-      }
+      if (doc) await Promise.all(Array.from({length: doc.pages||1}, (_,i) => del(`tm_c_${id}_${i}`)));
       await set('tm_meta', meta.filter(m => m.id !== id));
       return res.status(200).json({ ok: true });
     }

@@ -19,41 +19,39 @@ export default async function handler(req, res) {
   }
 
   async function set(key, val) {
-    try {
-      await fetch(`${BASE}/set/${key}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(JSON.stringify(val))
-      });
-    } catch(e) { throw new Error('set failed: ' + e.message); }
+    await fetch(`${BASE}/set/${key}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(JSON.stringify(val))
+    });
   }
 
   async function del(key) {
-    try {
-      await fetch(`${BASE}/del/${key}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }
-      });
-    } catch(e) {}
+    await fetch(`${BASE}/del/${key}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }
+    });
   }
 
   function safeMeta(v) {
-    if (Array.isArray(v)) return v;
-    return [];
+    return Array.isArray(v) ? v : [];
   }
 
   try {
     if (req.method === 'GET') {
       const meta = safeMeta(await get('tm_meta'));
-      const docs = [];
-      for (const m of meta) {
-        let chunks = [];
-        for (let i = 0; i < (m.pages || 1); i++) {
-          const p = await get(`tm_c_${m.id}_${i}`);
-          if (Array.isArray(p)) chunks = chunks.concat(p);
+      // Fetch ALL chunk pages in parallel for speed
+      const docs = await Promise.all(meta.map(async m => {
+        const pages = m.pages || 1;
+        // Fetch all pages in parallel
+        const pagePromises = [];
+        for (let i = 0; i < pages; i++) {
+          pagePromises.push(get(`tm_c_${m.id}_${i}`));
         }
-        docs.push({ ...m, chunks, chunkCount: chunks.length });
-      }
+        const pageResults = await Promise.all(pagePromises);
+        const chunks = pageResults.flatMap(p => Array.isArray(p) ? p : []);
+        return { ...m, chunks, chunkCount: chunks.length };
+      }));
       return res.status(200).json({ ok: true, documents: docs, count: docs.length });
     }
 
@@ -90,7 +88,11 @@ export default async function handler(req, res) {
       if (!id) return res.status(400).json({ error: 'need id' });
       const meta = safeMeta(await get('tm_meta'));
       const doc = meta.find(m => m.id === id);
-      if (doc) for (let i = 0; i < (doc.pages || 1); i++) await del(`tm_c_${id}_${i}`);
+      if (doc) {
+        const delPromises = [];
+        for (let i = 0; i < (doc.pages || 1); i++) delPromises.push(del(`tm_c_${id}_${i}`));
+        await Promise.all(delPromises);
+      }
       await set('tm_meta', meta.filter(m => m.id !== id));
       return res.status(200).json({ ok: true });
     }

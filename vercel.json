@@ -1,6 +1,8 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/claude", "destination": "/claude.js" },
+    { "source": "/api/kb",     "destination": "/kb.js"     },
+    { "source": "/api/search", "destination": "/search.js" },
+    { "source": "/(.*)",       "destination": "/index.html" }
   ]
 }

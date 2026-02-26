@@ -1,50 +1,56 @@
-const META_KEY = 'taxmind_meta_v1';
+const META_KEY = 'tm_meta_v2';
+const PAGE_SIZE = 50;
 
 async function kvGet(key) {
   const url = process.env.KV_REST_API_URL;
   const token = process.env.KV_REST_API_TOKEN;
-  if (!url || !token) throw new Error('KV not configured');
   const res = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
-  if (!res.ok) throw new Error('KV get error ' + res.status);
   const data = await res.json();
   if (!data.result) return null;
-  let parsed = data.result;
-  if (typeof parsed === 'string') try { parsed = JSON.parse(parsed); } catch(e) {}
-  if (typeof parsed === 'string') try { parsed = JSON.parse(parsed); } catch(e) {}
-  return parsed;
+  let v = data.result;
+  if (typeof v === 'string') try { v = JSON.parse(v); } catch(e){}
+  if (typeof v === 'string') try { v = JSON.parse(v); } catch(e){}
+  return v;
 }
 
 async function kvSet(key, value) {
   const url = process.env.KV_REST_API_URL;
   const token = process.env.KV_REST_API_TOKEN;
-  if (!url || !token) throw new Error('KV not configured');
   const res = await fetch(`${url}/set/${encodeURIComponent(key)}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(JSON.stringify(value))
   });
-  if (!res.ok) throw new Error('KV set error ' + res.status);
+  if (!res.ok) throw new Error('KV write failed ' + res.status);
 }
 
 async function kvDel(key) {
   const url = process.env.KV_REST_API_URL;
   const token = process.env.KV_REST_API_TOKEN;
-  if (!url || !token) return;
   await fetch(`${url}/del/${encodeURIComponent(key)}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` }
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
   });
 }
 
 async function getMeta() {
-  const meta = await kvGet(META_KEY);
-  return Array.isArray(meta) ? meta : [];
+  const v = await kvGet(META_KEY);
+  return Array.isArray(v) ? v : [];
 }
 
-async function setMeta(meta) {
-  await kvSet(META_KEY, Array.isArray(meta) ? meta : []);
+async function getChunks(docId, totalPages) {
+  const chunks = [];
+  for (let i = 0; i < totalPages; i++) {
+    const page = await kvGet(`tm_c_${docId}_${i}`);
+    if (Array.isArray(page)) chunks.push(...page);
+  }
+  return chunks;
+}
+
+async function delChunks(docId, totalPages) {
+  for (let i = 0; i < totalPages; i++) await kvDel(`tm_c_${docId}_${i}`);
 }
 
 export default async function handler(req, res) {
@@ -53,9 +59,8 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const meta = await getMeta();
-      // Load chunks for each doc
       const docs = await Promise.all(meta.map(async m => {
-        const chunks = await kvGet('chunks_' + m.id) || [];
+        const chunks = await getChunks(m.id, m.totalPages || 0);
         return { ...m, chunks, chunkCount: chunks.length };
       }));
       return res.status(200).json({ ok: true, documents: docs, count: docs.length });
@@ -72,37 +77,32 @@ export default async function handler(req, res) {
       }
 
       const meta = await getMeta();
-      const existingIds = new Set(meta.map(d => d.id));
       let added = 0;
 
       for (const doc of documents) {
-        if (!doc.id || !doc.title || doc.title === 'undefined' || existingIds.has(doc.id)) continue;
-        
-        const chunks = doc.chunks || [];
-        const BATCH = 200; // store 200 chunks per key
-        
-        if (chunks.length <= BATCH) {
-          await kvSet('chunks_' + doc.id, chunks);
-        } else {
-          // Store in multiple keys
-          let allChunks = [];
-          for (let i = 0; i < chunks.length; i += BATCH) {
-            const batch = chunks.slice(i, i + BATCH);
-            await kvSet(`chunks_${doc.id}_${Math.floor(i/BATCH)}`, batch);
-            allChunks = allChunks.concat(batch);
-          }
-          await kvSet('chunks_' + doc.id, allChunks.slice(0, BATCH)); // also store first batch under main key
-        }
+        if (!doc.id || !doc.title || doc.title === 'undefined') continue;
 
-        // Store metadata without chunks
-        const { chunks: _, ...docMeta } = doc;
-        docMeta.chunkCount = chunks.length;
-        meta.push(docMeta);
-        existingIds.add(doc.id);
-        added++;
+        const chunks = Array.isArray(doc.chunks) ? doc.chunks : [];
+        const chunkPage = doc.chunkPage ?? 0;
+        const totalPages = doc.totalPages ?? 1;
+        const existingIdx = meta.findIndex(d => d.id === doc.id);
+
+        // Store this page of chunks
+        await kvSet(`tm_c_${doc.id}_${chunkPage}`, chunks);
+
+        if (existingIdx >= 0) {
+          // Update existing doc metadata
+          meta[existingIdx].totalPages = totalPages;
+          meta[existingIdx].chunkCount = doc.chunkCount || chunks.length;
+        } else {
+          // New doc — add metadata
+          const { chunks: _, chunkPage: __, totalPages: ___, ...docMeta } = doc;
+          meta.push({ ...docMeta, totalPages, chunkCount: doc.chunkCount || chunks.length });
+          added++;
+        }
       }
 
-      await setMeta(meta);
+      await kvSet(META_KEY, meta);
       return res.status(200).json({ ok: true, added, total: meta.length });
     } catch(e) {
       return res.status(500).json({ error: e.message });
@@ -114,9 +114,10 @@ export default async function handler(req, res) {
       const { id } = req.query;
       if (!id) return res.status(400).json({ error: 'id required' });
       const meta = await getMeta();
+      const doc = meta.find(d => d.id === id);
+      if (doc) await delChunks(id, doc.totalPages || 0);
       const updated = meta.filter(d => d.id !== id);
-      await setMeta(updated);
-      await kvDel('chunks_' + id);
+      await kvSet(META_KEY, updated);
       return res.status(200).json({ ok: true, total: updated.length });
     } catch(e) {
       return res.status(500).json({ error: e.message });

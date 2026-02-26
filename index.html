@@ -274,7 +274,7 @@ html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;backgroun
           <div class="welcome-seal">⚖️</div>
           <h1>TaxMind is Ready</h1>
           <p>Your firm's AI assistant for the new Income Tax Act 2025. Every answer cites both the new and old Act sections.</p>
-          <div class="kb-notice" id="kbNotice">⏳ Loading shared knowledge base…</div>
+          <div class="kb-notice" id="kbNotice">✅ Ready — ask your tax question below</div>
           <div class="chips" id="chips"></div>
         </div>
       </div>
@@ -426,7 +426,12 @@ const SECS=['80C','80D','10(38)','148','148A','147','263','68','69A','54','54F',
 // ── INIT ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
   renderQQ(); renderPills();
-  syncKB(true); // silent initial load
+  // Show app immediately, load KB in background
+  updateKBUI(); // render UI with empty KB first
+  setTimeout(async()=>{
+    await syncKB(true);
+    loadChunksBackground();
+  }, 100);
 });
 
 // ── SHARED KB SYNC ─────────────────────────────────────────
@@ -436,16 +441,20 @@ async function syncKB(silent=false){
     document.getElementById('syncBtn').textContent='Syncing…';
   }
   try{
-    // Load metadata only — fast, no chunks
+    // Load metadata only — instant
     const res=await fetch('/api/kb');
     if(!res.ok) throw new Error('Server error '+res.status);
     const data=await res.json();
     if(data.documents){
-      // Store metadata (no chunks yet)
-      sharedKB=data.documents.map(d=>({...d, chunks:[]}));
+      sharedKB=data.documents.map(d=>({...d,chunks:[]}));
       _index=null; _indexedKBLen=0; chunksLoaded=false;
       updateKBUI();
+      const notice=document.getElementById('kbNotice');
+      if(sharedKB.length>0){
+        if(notice) notice.textContent=`✅ ${sharedKB.length} document${sharedKB.length>1?'s':''} found — loading chunks in background…`;
+      }
       if(!silent) showToast(`Synced — ${sharedKB.length} docs ready`,'success');
+      if(!silent) loadChunksBackground();
     }
   }catch(e){
     if(!silent) showToast('Sync failed: '+e.message,'error');
@@ -457,23 +466,66 @@ async function syncKB(silent=false){
   }
 }
 
-// Load full chunks on demand (when first query is made)
+// ── CHUNK CACHE ────────────────────────────────────────────
 let chunksLoaded=false;
 let chunksLoading=false;
-async function ensureChunks(){
+const CACHE_KEY='tm_chunks_cache';
+const CACHE_VER_KEY='tm_chunks_ver';
+
+async function getCacheVersion(){
+  // Version = sorted doc IDs + chunkCounts joined
+  return sharedKB.map(d=>d.id+':'+d.chunkCount).sort().join('|');
+}
+
+async function loadChunksBackground(){
   if(chunksLoaded||chunksLoading) return;
   chunksLoading=true;
   try{
+    // Check localStorage cache first
+    const ver = await getCacheVersion();
+    const cachedVer = localStorage.getItem(CACHE_VER_KEY);
+    const cachedData = localStorage.getItem(CACHE_KEY);
+    if(cachedVer===ver && cachedData){
+      const docs = JSON.parse(cachedData);
+      sharedKB = docs;
+      _index=null; _indexedKBLen=0;
+      chunksLoaded=true;
+      chunksLoading=false;
+      document.getElementById('kbLabel').textContent=`${sharedKB.length} docs · ready`;
+      return;
+    }
+    // Fetch from server
+    document.getElementById('kbLabel').textContent='Loading chunks…';
     const res=await fetch('/api/kb?chunks=1');
-    if(!res.ok) throw new Error('chunks load failed');
+    if(!res.ok) throw new Error('chunks load failed '+res.status);
     const data=await res.json();
     if(data.documents){
       sharedKB=data.documents;
       _index=null; _indexedKBLen=0;
       chunksLoaded=true;
+      // Save to localStorage cache
+      try{
+        localStorage.setItem(CACHE_KEY, JSON.stringify(sharedKB));
+        localStorage.setItem(CACHE_VER_KEY, ver);
+      }catch(e){ console.warn('cache save failed',e); }
+      document.getElementById('kbLabel').textContent=`${sharedKB.length} docs · ready`;
     }
-  }catch(e){ console.warn('chunk load error',e); }
+  }catch(e){
+    console.warn('chunk load error',e);
+    document.getElementById('kbLabel').textContent='Chunks load failed — retry';
+  }
   chunksLoading=false;
+}
+
+async function ensureChunks(){
+  if(chunksLoaded) return;
+  if(!chunksLoading) loadChunksBackground();
+  // Wait for chunks to load (max 30s)
+  let tries=0;
+  while(!chunksLoaded && tries<60){
+    await new Promise(r=>setTimeout(r,500));
+    tries++;
+  }
 }
 
 async function pushToServer(docs){

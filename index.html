@@ -861,13 +861,19 @@ MANDATORY RULES:
 7) End with ## References listing all sources.
 8) Use tables for comparisons, structured headings for explanations — never use plain bullet lists for comparative analysis.
 
-CRITICAL — ITA 2025 RENUMBERING: The new Act completely renumbers all sections. Key mappings:
-- TDS provisions: Old ss.192-206CCA → New Act Chapter XIX-A (approx. ss.270-320)
-- Capital gains: Old ss.45-55A → New Act Chapter VI (approx. ss.67-80)
-- Deductions 80C-80U: New Act Chapter VIII (approx. ss.123-160)
-- Assessment/reassessment: Old ss.143-148A → New Act Chapter XIV (approx. ss.195-230)
-- Business income: Old ss.28-44DA → New Act Chapter IV (approx. ss.18-65)
-When KB context shows "Verify in Act" or missing new Act sections, use your training knowledge of ITA 2025 structure to provide the best answer, clearly marking it as "per ITA 2025 structure" vs "confirmed from uploaded document".
+CRITICAL — ITA 2025 RENUMBERING: The new Act completely renumbers all sections:
+- Deductions 80C-80U → New Act Chapter VIII ss.122-160 (80C=s.123, 80D=s.124, 80G=s.133 etc.)
+- TDS provisions ss.192-206CCA → New Act Chapter XIX-A ss.393-443
+- Capital gains ss.45-55A → New Act Chapter VI ss.67-80
+- Assessment/reassessment ss.143-148A → New Act Chapter XIV ss.195-230
+- Business income ss.28-44DA → New Act Chapter IV ss.18-65
+
+MANDATORY EXTRACTION RULE: The KB context above contains actual text from both Acts. You MUST:
+1. Read every [New Act] chunk carefully and extract actual section numbers mentioned (e.g. "122", "123", "124")
+2. NEVER write "Verify in Act" if the KB context contains the relevant section — extract it directly
+3. If KB chunk [5] says "123. An individual... shall be allowed a deduction... not exceed ₹150000" — that IS the 80C equivalent, cite it as Section 123
+4. Map old sections to new using the KB text, not guesswork
+5. Only write "Verify in Act" if the topic is genuinely absent from ALL provided KB chunks
 
 OUTPUT FORMAT FOR COMPARISON QUERIES:
 ## [Topic]: ITA 1961 vs ITA 2025

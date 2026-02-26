@@ -220,21 +220,15 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
     </div>
     <div class="sidebar-scroll">
       <div class="sb-sect">
-        <div class="sb-lbl">Workspace</div>
         <button class="sb-btn active" onclick="sw('chat')" id="sb-chat"><span class="ic">💬</span>Tax Query</button>
-        <button class="sb-btn" onclick="sw('notice')" id="sb-notice"><span class="ic">📋</span>Notice Analyzer<span class="tag">KEY</span></button>
+        <button class="sb-btn" onclick="sw('notice')" id="sb-notice"><span class="ic">📋</span>Notice Analyzer</button>
         <button class="sb-btn" onclick="sw('crossref')" id="sb-crossref"><span class="ic">🔀</span>Section Cross-Ref</button>
         <button class="sb-btn" onclick="sw('kb')" id="sb-kb"><span class="ic">📚</span>Knowledge Base</button>
       </div>
-      <!-- KB Status -->
-      <div class="kb-pill warn" id="kbPill">
-        <div><span class="kp-dot"></span><span class="kp-t" id="kbPillTitle">Loading KB…</span></div>
-        <div class="kp-s" id="kbPillSub">Shared with team</div>
-      </div>
-      <div class="sb-sect"><div class="sb-lbl">Quick Queries</div></div>
-      <div class="qq-list" id="qqList"></div>
+
+
     </div>
-    <div class="sidebar-footer"><p>⚖ ITA 2025 · Effective 1 Apr 2026<br>Shared Knowledge Base · Team Edition<br>Powered by Claude Sonnet 4</p></div>
+    <div class="sidebar-footer"><p>ITA 2025 · Effective 1 Apr 2026<br>Powered by Claude Sonnet 4</p></div>
   </div>
 
   <div class="main">
@@ -247,10 +241,7 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
         <button class="tab" onclick="sw('crossref')" id="tab-crossref">Cross-Ref</button>
         <button class="tab" onclick="sw('kb')" id="tab-kb">Knowledge Base</button>
       </div>
-      <div class="tb-right">
-        <div class="status-dot red" id="kbDot"></div>
-        <span class="tb-label" id="kbLabel">Loading…</span>
-      </div>
+
     </div>
 
     <!-- CHAT -->
@@ -260,8 +251,7 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
           <div class="welcome-seal">⚖️</div>
           <h1>TaxMind is Ready</h1>
           <p>Your firm's AI assistant for the new Income Tax Act 2025. Every answer cites both the new and old Act sections.</p>
-          <div class="kb-notice" id="kbNotice">✅ Ready — ask your tax question below</div>
-          <div class="chips" id="chips"></div>
+
         </div>
       </div>
       <div class="input-bar">
@@ -436,9 +426,7 @@ async function syncKB(silent=false){
       _index=null; _indexedKBLen=0; chunksLoaded=false;
       updateKBUI();
       const notice=document.getElementById('kbNotice');
-      if(sharedKB.length>0){
-        if(notice) notice.textContent=`✅ ${sharedKB.length} document${sharedKB.length>1?'s':''} found — loading chunks in background…`;
-      }
+
       if(!silent) showToast(`Synced — ${sharedKB.length} docs ready`,'success');
       if(!silent) loadChunksBackground();
     }
@@ -467,7 +455,7 @@ async function loadChunksBackground(){
   if(chunksLoaded||chunksLoading) return;
   chunksLoading=true;
   try{
-    document.getElementById('kbLabel').textContent='Loading chunks…';
+
     const res=await fetch('/api/kb?chunks=1');
     if(!res.ok) throw new Error('chunks load failed '+res.status);
     const data=await res.json();
@@ -484,13 +472,13 @@ async function loadChunksBackground(){
       _index=null; _indexedKBLen=0;
       chunksLoaded=true;
       const totalChunks = sharedKB.reduce((s,d)=>s+(d.chunks||[]).length,0);
-      document.getElementById('kbLabel').textContent=`${sharedKB.length} docs · ${totalChunks.toLocaleString()} chunks ready`;
+
       const notice=document.getElementById('kbNotice');
       if(notice) notice.textContent=`✅ ${sharedKB.length} documents · ${totalChunks.toLocaleString()} chunks indexed and ready`;
     }
   }catch(e){
     console.warn('chunk load error',e);
-    document.getElementById('kbLabel').textContent='Load failed — refresh page';
+
   }
   chunksLoading=false;
 }
@@ -980,8 +968,7 @@ function toggleSb(){document.getElementById('sidebar').classList.toggle('collaps
 function closeSetup(){document.getElementById('setupModal').style.display='none';sw('kb');}
 
 function renderQQ(){
-  document.getElementById('qqList').innerHTML=QQ.map(q=>`<button class="qq-item" onclick="qq(${JSON.stringify(q)})">${q}</button>`).join('');
-  document.getElementById('chips').innerHTML=QQ.map(q=>`<button class="chip" onclick="qq(${JSON.stringify(q)})">${q}</button>`).join('');
+  const ql=document.getElementById('qqList'); if(ql) ql.innerHTML=QQ.map(q=>`<button class="qq-item" onclick="qq(${JSON.stringify(q)})">${q}</button>`).join('');
 }
 function qq(q){sw('chat');document.getElementById('chatInput').value=q;sendChat();}
 function renderPills(){document.getElementById('spills').innerHTML=SECS.map(s=>`<button class="sp" onclick="ql('${s}')">s. ${s}</button>`).join('');}

@@ -561,27 +561,9 @@ function updateKBUI(){
   document.getElementById('stSize').textContent=totalSize>1048576?(totalSize/1048576).toFixed(1)+' MB':Math.round(totalSize/1024)+' KB';
   document.getElementById('dlLabel').textContent=`Documents (${total})`;
 
-  // Sidebar pill
-  const pill=document.getElementById('kbPill');
-  const dot=document.getElementById('kbDot');
-  const lbl=document.getElementById('kbLabel');
-  const notice=document.getElementById('kbNotice');
-
+  // Enable send button if KB has docs
   if(total>0){
-    pill.className='kb-pill ok';
-    document.getElementById('kbPillTitle').textContent='KB Ready';
-    document.getElementById('kbPillSub').textContent=`${total} doc${total>1?'s':''} · shared`;
-    dot.className='status-dot green';
-    lbl.textContent=`${total} doc${total>1?'s':''} · ready`;
-    if(notice) notice.textContent=`✅ ${total} document${total>1?'s':''} loaded — answers grounded in your materials`;
     document.getElementById('sendBtn').disabled=!document.getElementById('chatInput').value.trim();
-  }else{
-    pill.className='kb-pill warn';
-    document.getElementById('kbPillTitle').textContent='KB Empty';
-    document.getElementById('kbPillSub').textContent='Upload ITA 2025 PDF';
-    dot.className='status-dot amber';
-    lbl.textContent='KB empty — upload docs';
-    if(notice) notice.textContent='⚠️ Knowledge base empty — go to Knowledge Base tab to upload ITA 2025 PDF';
   }
 
   renderDocList();

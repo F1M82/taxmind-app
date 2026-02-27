@@ -193,6 +193,11 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
 .mb-btn{width:100%;padding:10px;border-radius:var(--r);border:none;cursor:pointer;font-family:'Geist',sans-serif;font-size:13px;font-weight:500;background:var(--ink);color:var(--paper);margin-bottom:7px;transition:all .12s}
 .mb-btn:hover{background:var(--ink-3)}
 .mb-note{font-size:10.5px;color:var(--text-3);text-align:center;line-height:1.6}
+.msg-actions{display:flex;gap:4px;margin-top:6px;opacity:0;transition:opacity .15s}
+.msg-row:hover .msg-actions{opacity:1}
+.act-btn{padding:3px 9px;border:1px solid var(--rule);border-radius:4px;background:var(--paper);color:var(--text-3);font-size:10.5px;cursor:pointer;font-family:'Geist',sans-serif;display:flex;align-items:center;gap:4px;transition:all .12s}
+.act-btn:hover{background:var(--paper-3);color:var(--ink);border-color:var(--rule-mid)}
+.act-btn svg{width:11px;height:11px;flex-shrink:0}
 .toast{position:fixed;bottom:20px;right:20px;background:var(--paper);border:1px solid var(--rule);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--text);z-index:2000;box-shadow:var(--shadow-lg);animation:tIn .2s ease;max-width:280px;border-left:3px solid var(--ink);font-family:'Geist',sans-serif}
 @keyframes tIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 </style>
@@ -1015,7 +1020,12 @@ function addMsg(role,content,srcs=[]){
   const now=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
   const s=srcs.length?`<div style="margin-top:5px">${srcs.map(x=>`<span class="src-tag">${x}</span>`).join('')}</div>`:'';
   const b=role==='assistant'?`<div class="md">${md(content)}</div>`:content;
-  row.innerHTML=`<div class="av ${role==='assistant'?'ai':'user'}">${role==='assistant'?'⚖':'👤'}</div><div><div class="bubble ${role==='assistant'?'ai':'user'}">${b}</div>${s}<div class="b-meta">${now}</div></div>`;
+  const actions=role==='assistant'?`<div class="msg-actions">
+    <button class="act-btn" onclick="copyMsg(this)" title="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button>
+    <button class="act-btn" onclick="printMsg(this)" title="Print"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>
+    <button class="act-btn" onclick="downloadMsg(this)" title="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Save</button>
+  </div>`:'';
+  row.innerHTML=`<div class="av ${role==='assistant'?'ai':'user'}">${role==='assistant'?'⚖':'👤'}</div><div style="flex:1;min-width:0"><div class="bubble ${role==='assistant'?'ai':'user'}">${b}</div>${s}${actions}<div class="b-meta">${now}</div></div>`;
   area.appendChild(row);area.scrollTop=area.scrollHeight;
 }
 
@@ -1075,6 +1085,42 @@ async function lookup(){
   }catch(e){document.getElementById('crContent').innerHTML=`<p style="color:var(--red)">Error: ${e.message}</p>`;}
 }
 
+
+function copyMsg(btn){
+  const bubble=btn.closest('.msg-row').querySelector('.bubble');
+  const text=bubble.innerText||bubble.textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    const orig=btn.innerHTML;
+    btn.textContent='Copied!';
+    setTimeout(()=>{btn.innerHTML=orig;},1500);
+  });
+}
+function printMsg(btn){
+  const bubble=btn.closest('.msg-row').querySelector('.bubble');
+  const html=bubble.innerHTML;
+  const allBubbles=[...document.querySelectorAll('.bubble.user')];
+  const query=allBubbles.length?allBubbles[allBubbles.length-1].innerText:'Tax Query';
+  const win=window.open('','_blank','width=800,height=600');
+  win.document.write(`<!DOCTYPE html><html><head><title>TaxMind</title>
+<style>body{font-family:Georgia,serif;max-width:720px;margin:40px auto;padding:0 24px;color:#111;line-height:1.75}h2{border-bottom:1px solid #ddd;padding-bottom:6px}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.9em}th{background:#111;color:#fff;padding:8px 12px;text-align:left;font-size:.78em;text-transform:uppercase;letter-spacing:.04em}td{padding:7px 12px;border:1px solid #ddd}tr:nth-child(even) td{background:#f9f9f7}code{background:#f3f3f0;padding:1px 5px;border-radius:3px}blockquote{border-left:3px solid #999;padding-left:12px;color:#555;font-style:italic}.hdr{border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:baseline}.ftr{border-top:1px solid #ddd;margin-top:32px;padding-top:12px;font-size:.78em;color:#999}</style></head><body>
+<div class="hdr"><strong>TaxMind</strong><small>${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}</small></div>
+<div style="background:#f7f7f5;padding:10px 14px;border-radius:6px;margin-bottom:20px;font-size:.88em;color:#555"><em>${query.slice(0,200)}</em></div>
+${html}<div class="ftr">Generated by TaxMind · For professional reference only · Verify with current Act text</div>
+</body></html>`);
+  win.document.close();win.focus();setTimeout(()=>win.print(),400);
+}
+function downloadMsg(btn){
+  const bubble=btn.closest('.msg-row').querySelector('.bubble');
+  const text=bubble.innerText||bubble.textContent;
+  const allBubbles=[...document.querySelectorAll('.bubble.user')];
+  const query=allBubbles.length?allBubbles[allBubbles.length-1].innerText:'Tax Query';
+  const date=new Date().toISOString().slice(0,10);
+  const fname='TaxMind-'+query.slice(0,30).replace(/[^a-zA-Z0-9]/g,'-')+'-'+date+'.txt';
+  const out='TaxMind — Tax Intelligence\n'+'─'.repeat(50)+'\nQuery: '+query+'\nDate: '+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})+'\n'+'─'.repeat(50)+'\n\n'+text+'\n\n'+'─'.repeat(50)+'\nGenerated by TaxMind · Verify all section numbers with current Act text.';
+  const a=document.createElement('a');
+  a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(out);
+  a.download=fname;a.click();
+}
 function showToast(msg,type='success'){
   const c={success:'var(--teal)',error:'var(--red)',info:'var(--gold)'};
   const t=document.createElement('div');t.className='toast';t.style.borderLeftColor=c[type];t.textContent=msg;

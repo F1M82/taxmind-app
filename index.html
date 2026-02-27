@@ -785,9 +785,14 @@ const SEC_MAP_1961_TO_2025 = {
   '255':'341','256':'342','257':'343','260':'344','260a':'345',
   '261':'346','262':'347','263':'348','264':'349','264a':'350',
   '265':'351','266':'352',
+  // Salary income (Chapter IV → Chapter III)
+  '15':'15','16':'19','17':'17',
+  // Standard deduction, entertainment allowance, professional tax
+  // House property (Chapter IV → Chapter III)
+  '22':'18a','23':'23a','24':'24a','25':'25a','25a':'25b','26':'26a','27':'27a',
   // Other key sections
   '2':'2','4':'4','5':'5','6':'6','9':'9','10':'10',
-  '14':'14','15':'15','16':'16','17':'17',
+  '14':'14',
   '22':'18a','23':'19a','24':'20a','25':'21a','26':'22a','27':'23a',
   '56':'66','57':'67a','58':'68','59':'69',
   '60':'70a','61':'71a','62':'72a','63':'73a','64':'74a',
@@ -957,6 +962,9 @@ PENALTIES:
 
 BUSINESS INCOME (Old → New):
 28→18 | 36→40 | 37→41 | 40A→44 | 43B→49 | 44AA→54 | 44AB→55 | 44AD→56 | 44ADA→57 | 44AE→58
+
+SALARY INCOME (Old → New):
+15→15 (Basis of charge) | 16→19 (Standard deduction ₹50k, entertainment allowance, professional tax) | 17→17 (Definition of salary/perquisite/profit)
 
 OTHER KEY SECTIONS:
 68→96 (Unexplained cash credit) | 69→97 | 56→66 (Income from other sources) | 131→195 | 132→196 | 133A→200 | 156→225 | 234A→318 | 234B→319 | 234C→320 | 234E→322 | 234F→323

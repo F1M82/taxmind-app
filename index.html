@@ -107,6 +107,17 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
 .md tr:nth-child(even) td{background:var(--paper-2)}
 .md blockquote{border-left:2px solid var(--ink-3);padding-left:12px;color:var(--text-2);margin:6px 0;font-style:italic}
 .md hr{border:none;border-top:1px solid var(--rule);margin:8px 0}
+.md h4{font-size:.78rem;font-weight:700;color:var(--ink);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.06em;background:var(--paper-3);padding:4px 8px;border-radius:3px;border-left:3px solid var(--ink)}
+.calc-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.82rem;font-family:'Geist Mono',monospace}
+.calc-table td{padding:5px 10px;border:none}
+.calc-table td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.calc-table tr:nth-child(even){background:var(--paper-2)}
+.calc-table tr.calc-head td{background:var(--ink);color:var(--paper);font-family:'Geist',sans-serif;font-size:.76rem;font-weight:500;text-transform:uppercase;letter-spacing:.04em;padding:6px 10px}
+.calc-table tr.calc-sep td{border-top:1px solid var(--ink);padding:1px 0;background:transparent}
+.calc-table tr.calc-total td{font-weight:700;color:var(--ink);border-top:2px solid var(--ink);background:var(--paper-3)}
+.calc-amt{font-weight:500;text-align:right}
+.code-block{background:var(--paper-3);border:1px solid var(--rule);border-radius:var(--r);padding:10px 14px;margin:8px 0;overflow-x:auto}
+.code-block pre{font-family:'Geist Mono',monospace;font-size:.78rem;margin:0;white-space:pre;color:var(--ink)}
 .typing{display:flex;gap:4px;padding:11px 15px;background:var(--paper);border:1px solid var(--rule);border-radius:8px;border-top-left-radius:2px;box-shadow:var(--shadow-sm);align-items:center}
 .dot{width:5px;height:5px;background:var(--ink-3);border-radius:50%;animation:dots 1.2s infinite}
 .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
@@ -1182,13 +1193,80 @@ async function claude(sys, messages, kbctx='', webctx='', maxTokens=2000) {
 
 // ── MARKDOWN ───────────────────────────────────────────────
 function md(t){
-  if(!t)return'';
-  return t.replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/`([^`]+)`/g,'<code>$1</code>')
-    .replace(/^---+$/gm,'<hr/>').replace(/^\| ?(.+?) ?\|$/gm,(_,r)=>'<tr>'+r.split('|').map(c=>`<td>${c.trim()}</td>`).join('')+'</tr>')
-    .replace(/((<tr>.*?<\/tr>\n?)+)/gs,rows=>{const[h,...rest]=rows.trim().split('\n').filter(l=>l.includes('<tr>'));return`<table><thead>${h.replace(/<td>/g,'<th>').replace(/<\/td>/g,'</th>')}</thead><tbody>${rest.join('')}</tbody></table>`;})
-    .replace(/^- (.+)$/gm,'<li>$1</li>').replace(/(<li>.*?<\/li>\n?)+/gs,'<ul>$&</ul>')
-    .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br/>').replace(/^(?!<[htupblo])(.+)$/gm,'<p>$1</p>');
+  if(!t) return '';
+
+  // 1. Fenced code blocks — convert calculation blocks to styled tables
+  t = t.replace(/```[\w]*\n([\s\S]*?)```/g, (_, code) => {
+    const lines = code.split('\n').filter(l => l.trim());
+    // Check if it looks like a calculation table (has multiple lines with amounts)
+    const isCalc = lines.some(l => /[\d,]+/.test(l)) && lines.length > 2;
+    if(isCalc){
+      const rows = lines.map(l => {
+        // Split on 2+ spaces or tab to get label vs amount
+        const parts = l.split(/\s{2,}|\t/);
+        if(parts.length >= 2){
+          const label = parts[0].trim();
+          const val = parts.slice(1).join(' ').trim();
+          // Detect separator lines
+          if(/^[─\-═=]+$/.test(label)) return '<tr class="calc-sep"><td colspan="2"></td></tr>';
+          // Bold total lines
+          const isTot = /^(total|net|tax|payable|balance|grand|amount due|less|add)/i.test(label);
+          return `<tr${isTot?' class="calc-total"':''}><td>${label}</td><td class="calc-amt">${val}</td></tr>`;
+        }
+        // Single column line (headings like "Computation of...")
+        const isSep = /^[─\-═=]+$/.test(l.trim());
+        if(isSep) return '<tr class="calc-sep"><td colspan="2"></td></tr>';
+        return `<tr class="calc-head"><td colspan="2"><strong>${l.trim()}</strong></td></tr>`;
+      }).join('');
+      return `<table class="calc-table">${rows}</table>`;
+    }
+    return `<div class="code-block"><pre>${code}</pre></div>`;
+  });
+
+  // 2. Inline code
+  t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // 3. Headings — h1 through h4 (#### must come before ###)
+  t = t.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+  t = t.replace(/^### (.+)$/gm,  '<h3>$1</h3>');
+  t = t.replace(/^## (.+)$/gm,   '<h2>$1</h2>');
+  t = t.replace(/^# (.+)$/gm,    '<h1>$1</h1>');
+
+  // 4. Bold / italic
+  t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/\*(.+?)\*/g,     '<em>$1</em>');
+
+  // 5. Horizontal rules
+  t = t.replace(/^---+$/gm, '<hr/>');
+
+  // 6. Markdown tables
+  t = t.replace(/^\| ?(.+?) ?\|$/gm, (_, r) =>
+    '<tr>' + r.split('|').map(c => `<td>${c.trim()}</td>`).join('') + '</tr>'
+  );
+  // Skip separator rows (---|---) and wrap in table
+  t = t.replace(/((<tr>.*?<\/tr>\n?)+)/gs, rows => {
+    const allRows = rows.trim().split('\n').filter(l => l.includes('<tr>'));
+    // Filter out separator rows (contain only dashes/spaces)
+    const dataRows = allRows.filter(r => !/<td>[\s\-:]+<\/td>/.test(r) || r.replace(/<\/?t[dr]>/g,'').replace(/[\s\-:|]/g,'').length > 0);
+    if(!dataRows.length) return '';
+    const filtered = dataRows.filter(r => !r.replace(/<[^>]+>/g,'').trim().match(/^[\-: ]+$/));
+    if(!filtered.length) return '';
+    const [head, ...body] = filtered;
+    const th = head.replace(/<td>/g,'<th>').replace(/<\/td>/g,'</th>');
+    return `<table><thead>${th}</thead><tbody>${body.join('')}</tbody></table>`;
+  });
+
+  // 7. Lists
+  t = t.replace(/^[-•] (.+)$/gm, '<li>$1</li>');
+  t = t.replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>');
+  t = t.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
+
+  // 8. Paragraphs
+  t = t.replace(/\n\n/g, '</p><p>');
+  t = t.replace(/\n/g, '<br/>');
+  t = t.replace(/^(?!<[htupblo\/])(.+)$/gm, '<p>$1</p>');
+
+  return t;
 }
 
 // ── UI ─────────────────────────────────────────────────────
@@ -1333,7 +1411,15 @@ function printMsg(btn){
   const query=allBubbles.length?allBubbles[allBubbles.length-1].innerText:'Tax Query';
   const win=window.open('','_blank','width=800,height=600');
   win.document.write(`<!DOCTYPE html><html><head><title>TaxMind</title>
-<style>body{font-family:Georgia,serif;max-width:720px;margin:40px auto;padding:0 24px;color:#111;line-height:1.75}h2{border-bottom:1px solid #ddd;padding-bottom:6px}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.9em}th{background:#111;color:#fff;padding:8px 12px;text-align:left;font-size:.78em;text-transform:uppercase;letter-spacing:.04em}td{padding:7px 12px;border:1px solid #ddd}tr:nth-child(even) td{background:#f9f9f7}code{background:#f3f3f0;padding:1px 5px;border-radius:3px}blockquote{border-left:3px solid #999;padding-left:12px;color:#555;font-style:italic}.hdr{border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:baseline}.ftr{border-top:1px solid #ddd;margin-top:32px;padding-top:12px;font-size:.78em;color:#999}</style></head><body>
+<style>body{font-family:Georgia,serif;max-width:720px;margin:40px auto;padding:0 24px;color:#111;line-height:1.75}h2{border-bottom:1px solid #ddd;padding-bottom:6px}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.9em}th{background:#111;color:#fff;padding:8px 12px;text-align:left;font-size:.78em;text-transform:uppercase;letter-spacing:.04em}td{padding:7px 12px;border:1px solid #ddd}tr:nth-child(even) td{background:#f9f9f7}code{background:#f3f3f0;padding:1px 5px;border-radius:3px}blockquote{border-left:3px solid #999;padding-left:12px;color:#555;font-style:italic}.hdr{border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:baseline}.ftr{border-top:1px solid #ddd;margin-top:32px;padding-top:12px;font-size:.78em;color:#999}
+.calc-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.85em;font-family:monospace}
+.calc-table td{padding:5px 10px}
+.calc-table td:last-child{text-align:right}
+.calc-table tr.calc-head td{background:#111;color:#fff;font-size:.78em;text-transform:uppercase;padding:6px 10px}
+.calc-table tr.calc-sep td{border-top:1px solid #111;padding:1px 0}
+.calc-table tr.calc-total td{font-weight:700;border-top:2px solid #111;background:#f3f3f0}
+.calc-table tr:nth-child(even){background:#f9f9f7}
+h4{font-size:.82em;text-transform:uppercase;letter-spacing:.05em;background:#f3f3f0;padding:3px 7px;border-left:3px solid #111}</style></head><body>
 <div class="hdr"><strong>TaxMind</strong><small>${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}</small></div>
 
 ${html}<div class="ftr">Generated by TaxMind · For professional reference only · Verify with current Act text</div>

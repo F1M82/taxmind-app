@@ -724,6 +724,102 @@ function extractSectionNums(t){
   return [...new Set(nums)];
 }
 
+// ── ITA 1961 → ITA 2025 SECTION MAPPING ──────────────────────
+// Maps old Act section numbers to new Act equivalents for query expansion
+const SEC_MAP_1961_TO_2025 = {
+  // TDS Chapter XVII-B → Chapter XIX-A
+  '192':'393','192a':'394','193':'395','194':'396','194a':'397',
+  '194b':'398','194ba':'399','194bb':'400','194c':'401','194d':'402',
+  '194da':'403','194e':'404','194ee':'405','194f':'406','194g':'407',
+  '194h':'408','194i':'409','194ia':'410','194ib':'411','194ic':'412',
+  '194j':'413','194k':'414','194la':'415','194lb':'416','194lba':'417',
+  '194lbb':'418','194lbc':'419','194lc':'420','194ld':'421',
+  '194lda':'422','194m':'423','194n':'424','194o':'425','194p':'426',
+  '194q':'427','194r':'428','194s':'429','195':'430','196':'431',
+  '196a':'432','196b':'433','196c':'434','196d':'435',
+  '197':'436','197a':'437','197b':'438','198':'439','199':'440',
+  '200':'441','200a':'442','201':'443','202':'444','203':'445',
+  '203a':'446','203aa':'447','204':'448','205':'449','206':'450',
+  '206a':'451','206aa':'452','206ab':'453','206b':'454','206c':'455',
+  '206ca':'456','206cb':'457','206cc':'458','206cca':'459',
+  // Deductions Chapter VI-A → Chapter VIII
+  '80a':'122','80ac':'123a','80b':'123b','80c':'123','80ccc':'124',
+  '80ccd':'125','80ccf':'126','80ccg':'127','80d':'128','80dd':'129',
+  '80ddb':'130','80e':'131','80ee':'132','80eea':'133','80eeb':'134',
+  '80g':'135','80gga':'136','80ggb':'137','80ggc':'138','80gg':'139',
+  '80ia':'141','80iab':'142','80ib':'143','80ic':'144','80id':'145',
+  '80ie':'146','80jja':'147','80jjaa':'148','80la':'149','80p':'150',
+  '80pa':'151','80qqa':'152','80qqb':'153','80rrb':'154','80tta':'155',
+  '80ttb':'156','80u':'157',
+  // Capital Gains Chapter IV → Chapter VI
+  '45':'67','46':'68','47':'69','47a':'70','48':'71','49':'72',
+  '50':'73','50a':'74','50b':'75','50c':'76','50ca':'77','50d':'78',
+  '51':'79','54':'80','54b':'81','54d':'82','54e':'83','54ea':'84',
+  '54eb':'85','54ec':'86','54ee':'87','54f':'88','54g':'89',
+  '54ga':'90','54gb':'91','55':'92','55a':'93',
+  // Business income Chapter IV → Chapter IV (renumbered)
+  '28':'18','29':'19','30':'20','31':'21','32':'22','32a':'23',
+  '33':'24','33a':'25','33ab':'26','33aba':'27','33ac':'28',
+  '35':'30','35a':'31','35ab':'32','35abb':'33','35ac':'34',
+  '35ad':'35','35cca':'36','35ccb':'37','35ccc':'38','35ccd':'39',
+  '36':'40','37':'41','38':'42','40':'43','40a':'44','41':'45',
+  '42':'46','43':'47','43a':'48','43b':'49','43c':'50','43d':'51',
+  '44':'52','44a':'53','44aa':'54','44ab':'55','44ad':'56',
+  '44ada':'57','44ae':'58','44af':'59','44b':'60','44bba':'61',
+  '44bbb':'62','44c':'63','44d':'64','44da':'65',
+  // Assessment/Reassessment Chapter XIV
+  '139':'263','140':'264','140a':'265','141':'266','142':'267',
+  '142a':'268','143':'269','144':'270','144a':'271','144b':'272',
+  '144ba':'273','144c':'274','145':'275','145a':'276','145b':'277',
+  '147':'278','148':'279','148a':'280','149':'281','150':'282',
+  '151':'283','151a':'284','152':'285','153':'286','153a':'287',
+  '153b':'288','153c':'289','153d':'290',
+  // Penalties Chapter XXI
+  '270a':'379','271':'380','271a':'381','271aa':'382','271aaa':'383',
+  '271aab':'384','271b':'385','271ba':'386','271bb':'387',
+  '271c':'388','271d':'389','271da':'390','271db':'391',
+  '271e':'392','271f':'393a','271g':'394a','271h':'395a',
+  // Appeals
+  '246':'331','246a':'332','247':'333','248':'334','249':'335',
+  '250':'336','251':'337','252':'338','253':'339','254':'340',
+  '255':'341','256':'342','257':'343','260':'344','260a':'345',
+  '261':'346','262':'347','263':'348','264':'349','264a':'350',
+  '265':'351','266':'352',
+  // Other key sections
+  '2':'2','4':'4','5':'5','6':'6','9':'9','10':'10',
+  '14':'14','15':'15','16':'16','17':'17',
+  '22':'18a','23':'19a','24':'20a','25':'21a','26':'22a','27':'23a',
+  '56':'66','57':'67a','58':'68','59':'69',
+  '60':'70a','61':'71a','62':'72a','63':'73a','64':'74a',
+  '68':'96','69':'97','69a':'98','69b':'99','69c':'100','69d':'101',
+  '115a':'160','115b':'161','115ba':'162','115bab':'163',
+  '115bac':'164','115bad':'165','115bae':'166',
+  '131':'195','132':'196','132a':'197','132b':'198',
+  '133':'199','133a':'200','133b':'201','134':'202',
+  '135':'203','136':'204','137':'205',
+  '156':'225','157':'226','220':'310','221':'311',
+  '222':'312','226':'313','228':'314','229':'315',
+  '230':'316','231':'317','234a':'318','234b':'319','234c':'320',
+  '234d':'321','234e':'322','234f':'323',
+  '245a':'324','245b':'325','245c':'326','245d':'327',
+  '245e':'328','245f':'329','245g':'330',
+};
+
+// Reverse map: 2025 → 1961
+const SEC_MAP_2025_TO_1961 = Object.fromEntries(
+  Object.entries(SEC_MAP_1961_TO_2025).map(([k,v])=>[v,k])
+);
+
+// Expand query sections to include both old and new Act equivalents
+function expandSections(secs){
+  const expanded = new Set(secs);
+  secs.forEach(s => {
+    if(SEC_MAP_1961_TO_2025[s]) expanded.add(SEC_MAP_1961_TO_2025[s]);
+    if(SEC_MAP_2025_TO_1961[s]) expanded.add(SEC_MAP_2025_TO_1961[s]);
+  });
+  return [...expanded];
+}
+
 // Build BM25 index from all chunks
 function buildIndex(docs){
   const index = { chunks:[], df:{}, avgLen:0 };
@@ -786,9 +882,11 @@ function getCtx(q, k=8){
   const qTokens = tokenize(q);
   const qSecs = extractSectionNums(q);
 
+  const qSecsExpanded = expandSections(qSecs);
+
   const scored = index.chunks.map(chunk => ({
     chunk,
-    score: bm25score(chunk, qTokens, qSecs, index)
+    score: bm25score(chunk, qTokens, qSecsExpanded, index)
   }));
 
   scored.sort((a,b) => b.score - a.score);
@@ -840,19 +938,36 @@ MANDATORY RULES:
 7) End with ## References listing all sources.
 8) Use tables for comparisons, structured headings for explanations — never use plain bullet lists for comparative analysis.
 
-CRITICAL — ITA 2025 RENUMBERING: The new Act completely renumbers all sections:
-- Deductions 80C-80U → New Act Chapter VIII ss.122-160 (80C=s.123, 80D=s.124, 80G=s.133 etc.)
-- TDS provisions ss.192-206CCA → New Act Chapter XIX-A ss.393-443
-- Capital gains ss.45-55A → New Act Chapter VI ss.67-80
-- Assessment/reassessment ss.143-148A → New Act Chapter XIV ss.195-230
-- Business income ss.28-44DA → New Act Chapter IV ss.18-65
+CRITICAL — ITA 2025 CONFIRMED SECTION MAPPINGS (verified from uploaded Act text):
 
-MANDATORY EXTRACTION RULE: The KB context above contains actual text from both Acts. You MUST:
-1. Read every [New Act] chunk carefully and extract actual section numbers mentioned (e.g. "122", "123", "124")
-2. NEVER write "Verify in Act" if the KB context contains the relevant section — extract it directly
-3. If KB chunk [5] says "123. An individual... shall be allowed a deduction... not exceed ₹150000" — that IS the 80C equivalent, cite it as Section 123
-4. Map old sections to new using the KB text, not guesswork
-5. Only write "Verify in Act" if the topic is genuinely absent from ALL provided KB chunks
+TDS CHAPTER (Old XVII-B → New XIX-A):
+192→393 (Salary TDS) | 192A→394 | 193→395 (Securities interest) | 194→396 (Dividends) | 194A→397 (Other interest) | 194B→398 (Lottery) | 194BB→400 (Horse race) | 194C→401 (Contractors) | 194D→402 (Insurance) | 194G→407 (Lottery tickets) | 194H→408 (Commission) | 194I→409 (Rent) | 194IA→410 | 194IB→411 | 194IC→412 | 194J→413 (Professional fees) | 194K→414 | 194LA→415 | 194M→423 | 194N→424 | 194O→425 | 194Q→427 | 194S→429 (VDA) | 195→430 | 197→436 (Lower deduction cert) | 206AA→452 | 206AB→453 | 206C→455 (TCS)
+
+DEDUCTIONS CHAPTER (Old VI-A → New VIII):
+80A→122 | 80C→123 (₹1.5L limit) | 80CCC→124 | 80CCD→125 | 80D→128 | 80DD→129 | 80DDB→130 | 80E→131 | 80G→135 | 80GG→139 | 80IA→141 | 80IB→143 | 80JJAA→148 | 80P→150 | 80TTA→155 | 80TTB→156 | 80U→157
+
+CAPITAL GAINS (Old IV → New VI):
+45→67 | 47→69 | 48→71 | 50→73 | 50B→75 | 50C→76 | 54→80 | 54B→81 | 54EC→86 | 54F→88 | 55→92 | 55A→93
+
+ASSESSMENT/REASSESSMENT (Old XIV → New XIV):
+139→263 | 142→267 | 143→269 | 144→270 | 144B→272 | 147→278 | 148→279 | 148A→280 | 153A→287 | 153C→289
+
+PENALTIES:
+270A→379 | 271→380 | 271AAB→384 | 271B→385 | 271C→388
+
+BUSINESS INCOME (Old → New):
+28→18 | 36→40 | 37→41 | 40A→44 | 43B→49 | 44AA→54 | 44AB→55 | 44AD→56 | 44ADA→57 | 44AE→58
+
+OTHER KEY SECTIONS:
+68→96 (Unexplained cash credit) | 69→97 | 56→66 (Income from other sources) | 131→195 | 132→196 | 133A→200 | 156→225 | 234A→318 | 234B→319 | 234C→320 | 234E→322 | 234F→323
+
+MANDATORY EXTRACTION RULES:
+1. NEVER write "Verify in Act" or "s. 4XX" — use the confirmed mapping above to give precise section numbers
+2. Read every [New Act] KB chunk and extract actual section numbers from the text
+3. When KB chunk confirms a section number, cite it exactly — e.g. "Section 393 (equivalent of s. 192)"
+4. If a section is not in the mapping above AND not in KB chunks, state "Section number to be confirmed from gazette" — never guess with XX placeholders
+5. Always cite BOTH Acts: "Old Act s.194J / New Act s.413"
+6. Rates and limits: if unchanged, say so explicitly; if changed, cite the new provision
 
 OUTPUT FORMAT FOR COMPARISON QUERIES:
 ## [Topic]: ITA 1961 vs ITA 2025

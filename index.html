@@ -108,15 +108,19 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
 .md blockquote{border-left:2px solid var(--ink-3);padding-left:12px;color:var(--text-2);margin:6px 0;font-style:italic}
 .md hr{border:none;border-top:1px solid var(--rule);margin:8px 0}
 .md h4{font-size:.78rem;font-weight:700;color:var(--ink);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.06em;background:var(--paper-3);padding:4px 8px;border-radius:3px;border-left:3px solid var(--rule-mid)}
-.calc-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.82rem;font-family:'Geist Mono',monospace;border:1px solid var(--rule)}
-.calc-table td{padding:6px 12px;border:none;border-bottom:1px solid var(--rule)}
+.calc-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.82rem;font-family:'Geist Mono',monospace;border:1px solid var(--rule);table-layout:fixed}
+.calc-table colgroup .col-label{width:68%}
+.calc-table colgroup .col-amt{width:32%}
+.calc-table td{padding:6px 12px;border:none;border-bottom:1px solid var(--rule);overflow:hidden;word-wrap:break-word}
 .calc-table td:first-child{width:68%}
-.calc-table td.calc-amt{width:32%;text-align:right;font-variant-numeric:tabular-nums;font-weight:500;color:var(--ink)}
+.calc-table td:last-child{width:32%;text-align:right;font-variant-numeric:tabular-nums}
+.calc-table td.calc-amt{text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
 .calc-table tr:nth-child(even) td{background:var(--paper-2)}
-.calc-table tr.calc-head td{background:var(--paper-3);color:var(--ink);font-family:'Geist',sans-serif;font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:7px 12px;border-bottom:2px solid var(--rule-mid)}
-.calc-table tr.calc-label td{color:var(--ink-2);padding-left:20px}
+.calc-table tr.calc-head td{background:var(--paper-3)!important;color:var(--ink);font-family:'Geist',sans-serif;font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:7px 12px;border-bottom:2px solid var(--rule-mid);width:auto}
+.calc-table tr.calc-head td:last-child{text-align:right;color:var(--ink-2);font-weight:500}
+.calc-table tr.calc-label td{color:var(--ink-2);padding-left:20px;font-style:italic;background:transparent!important}
 .calc-table tr.calc-sub td:first-child{padding-left:20px;color:var(--ink-2)}
-.calc-table tr.calc-sep td{border-top:1px solid var(--rule-mid);padding:0;background:transparent!important;border-bottom:none}
+.calc-table tr.calc-sep td{border-top:1px solid var(--rule-mid);padding:0;background:transparent!important;border-bottom:none;height:1px}
 .calc-table tr.calc-total td{font-weight:700;color:var(--ink);border-top:2px solid var(--rule-mid);border-bottom:2px solid var(--rule-mid);background:var(--paper-3)!important}
 .calc-amt{text-align:right}
 .code-block{background:var(--paper-3);border:1px solid var(--rule);border-radius:var(--r);padding:10px 14px;margin:8px 0;overflow-x:auto}
@@ -1234,8 +1238,10 @@ function md(t){
         // Check if it's a separator keyword
         const isHead = /^(particulars|computation|sl\.?\s*no|s\.?\s*no)/i.test(label);
         const isSect = /^(scenario|tax calculation|deductions under|income under|monthly|annual|gross|net taxable)/i.test(label);
-        if(isHead || isSect)
-          return `<tr class="calc-head"><td colspan="2"><strong>${label}</strong></td></tr>`;
+        if(isHead)
+          return `<tr class="calc-head"><td>${label}</td><td class="calc-amt">Amount (₹)</td></tr>`;
+        if(isSect)
+          return `<tr class="calc-head"><td>${label}</td><td class="calc-amt"></td></tr>`;
         return `<tr class="calc-label"><td colspan="2">${label}</td></tr>`;
       }
 
@@ -1245,7 +1251,7 @@ function md(t){
       return `<tr${cls}><td>${label}</td><td class="calc-amt">${val}</td></tr>`;
     }).join('');
 
-    return `<table class="calc-table">${rows}</table>`;
+    return `<table class="calc-table"><colgroup><col style="width:68%"><col style="width:32%"></colgroup>${rows}</table>`;
   });
 
   // 2. Inline code

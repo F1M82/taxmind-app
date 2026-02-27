@@ -101,20 +101,20 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
 .md strong{font-weight:600;color:var(--ink)}.md em{color:var(--text-2);font-style:italic}
 .md code{font-family:'Geist Mono',monospace;font-size:.78rem;background:var(--paper-3);padding:1px 5px;border-radius:3px;color:var(--ink-2)}
 .md table{width:100%;border-collapse:collapse;margin:8px 0;font-size:.82rem}
-.md th{background:var(--ink);color:var(--paper);padding:7px 11px;text-align:left;font-weight:500;font-size:.76rem;text-transform:uppercase;letter-spacing:.04em}
+.md th{background:var(--paper-3);color:var(--ink);padding:7px 11px;text-align:left;font-weight:600;font-size:.76rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--rule-mid)}
 .md td{padding:6px 11px;border-bottom:1px solid var(--rule);border-right:1px solid var(--rule)}
 .md td:first-child{border-left:1px solid var(--rule)}
 .md tr:nth-child(even) td{background:var(--paper-2)}
 .md blockquote{border-left:2px solid var(--ink-3);padding-left:12px;color:var(--text-2);margin:6px 0;font-style:italic}
 .md hr{border:none;border-top:1px solid var(--rule);margin:8px 0}
-.md h4{font-size:.78rem;font-weight:700;color:var(--ink);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.06em;background:var(--paper-3);padding:4px 8px;border-radius:3px;border-left:3px solid var(--ink)}
-.calc-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.82rem;font-family:'Geist Mono',monospace}
-.calc-table td{padding:5px 10px;border:none}
+.md h4{font-size:.78rem;font-weight:700;color:var(--ink);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.06em;background:var(--paper-3);padding:4px 8px;border-radius:3px;border-left:3px solid var(--rule-mid)}
+.calc-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.82rem;font-family:'Geist Mono',monospace;border:1px solid var(--rule)}
+.calc-table td{padding:6px 12px;border:none;border-bottom:1px solid var(--rule)}
 .calc-table td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 .calc-table tr:nth-child(even){background:var(--paper-2)}
-.calc-table tr.calc-head td{background:var(--ink);color:var(--paper);font-family:'Geist',sans-serif;font-size:.76rem;font-weight:500;text-transform:uppercase;letter-spacing:.04em;padding:6px 10px}
-.calc-table tr.calc-sep td{border-top:1px solid var(--ink);padding:1px 0;background:transparent}
-.calc-table tr.calc-total td{font-weight:700;color:var(--ink);border-top:2px solid var(--ink);background:var(--paper-3)}
+.calc-table tr.calc-head td{background:var(--paper-3);color:var(--ink);font-family:'Geist',sans-serif;font-size:.74rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:7px 12px;border-bottom:2px solid var(--rule-mid)}
+.calc-table tr.calc-sep td{border-top:1px solid var(--rule-mid);padding:0;background:transparent;border-bottom:none}
+.calc-table tr.calc-total td{font-weight:700;color:var(--ink);border-top:2px solid var(--rule-mid);border-bottom:2px solid var(--rule-mid);background:var(--paper-3)}
 .calc-amt{font-weight:500;text-align:right}
 .code-block{background:var(--paper-3);border:1px solid var(--rule);border-radius:var(--r);padding:10px 14px;margin:8px 0;overflow-x:auto}
 .code-block pre{font-family:'Geist Mono',monospace;font-size:.78rem;margin:0;white-space:pre;color:var(--ink)}
@@ -988,7 +988,7 @@ List 3-5 sections the professional should also check, with brief reason why.
 ════════════════════════════════════════
 CALCULATION STANDARDS
 ════════════════════════════════════════
-Always show calculations in this format:
+CRITICAL — Always wrap ALL calculations in triple backtick fences. Never output calculation rows as plain text. Use exactly this format:
 
 **Computation of [Tax/Deduction/Gain] — [Taxpayer Name], AY [20XX-XX]**
 \`\`\`
@@ -1006,6 +1006,8 @@ Add: Health & Education Cess @ 4%            XX,XXX
 ─────────────────────────────────────────────────
 Total Tax Payable                         XX,XX,XXX
 \`\`\`
+
+Tax slabs MUST be shown in a markdown table (| Slab | Rate |), NEVER as bullet list or black box items.
 
 For TDS calculations, always show:
 - Gross payment amount
@@ -1411,15 +1413,16 @@ function printMsg(btn){
   const query=allBubbles.length?allBubbles[allBubbles.length-1].innerText:'Tax Query';
   const win=window.open('','_blank','width=800,height=600');
   win.document.write(`<!DOCTYPE html><html><head><title>TaxMind</title>
-<style>body{font-family:Georgia,serif;max-width:720px;margin:40px auto;padding:0 24px;color:#111;line-height:1.75}h2{border-bottom:1px solid #ddd;padding-bottom:6px}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.9em}th{background:#111;color:#fff;padding:8px 12px;text-align:left;font-size:.78em;text-transform:uppercase;letter-spacing:.04em}td{padding:7px 12px;border:1px solid #ddd}tr:nth-child(even) td{background:#f9f9f7}code{background:#f3f3f0;padding:1px 5px;border-radius:3px}blockquote{border-left:3px solid #999;padding-left:12px;color:#555;font-style:italic}.hdr{border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:baseline}.ftr{border-top:1px solid #ddd;margin-top:32px;padding-top:12px;font-size:.78em;color:#999}
-.calc-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.85em;font-family:monospace}
-.calc-table td{padding:5px 10px}
+<style>body{font-family:Georgia,serif;max-width:720px;margin:40px auto;padding:0 24px;color:#111;line-height:1.75}h2{border-bottom:1px solid #ddd;padding-bottom:6px}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.9em}th{background:#f0f0ed;color:#111;padding:8px 12px;text-align:left;font-size:.78em;text-transform:uppercase;letter-spacing:.04em}td{padding:7px 12px;border:1px solid #ddd}tr:nth-child(even) td{background:#f9f9f7}code{background:#f3f3f0;padding:1px 5px;border-radius:3px}blockquote{border-left:3px solid #999;padding-left:12px;color:#555;font-style:italic}.hdr{border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:baseline}.ftr{border-top:1px solid #ddd;margin-top:32px;padding-top:12px;font-size:.78em;color:#999}
+.calc-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.85em;font-family:monospace;border:1px solid #ddd}
+.calc-table td{padding:5px 10px;border-bottom:1px solid #eee}
 .calc-table td:last-child{text-align:right}
-.calc-table tr.calc-head td{background:#111;color:#fff;font-size:.78em;text-transform:uppercase;padding:6px 10px}
-.calc-table tr.calc-sep td{border-top:1px solid #111;padding:1px 0}
-.calc-table tr.calc-total td{font-weight:700;border-top:2px solid #111;background:#f3f3f0}
-.calc-table tr:nth-child(even){background:#f9f9f7}
-h4{font-size:.82em;text-transform:uppercase;letter-spacing:.05em;background:#f3f3f0;padding:3px 7px;border-left:3px solid #111}</style></head><body>
+.calc-table tr.calc-head td{background:#f3f3f0;color:#111;font-size:.78em;text-transform:uppercase;font-weight:600;padding:6px 10px;border-bottom:2px solid #ccc}
+.calc-table tr.calc-sep td{border-top:1px solid #ccc;padding:0;border-bottom:none}
+.calc-table tr.calc-total td{font-weight:700;border-top:2px solid #ccc;border-bottom:2px solid #ccc;background:#f7f7f5}
+.calc-table tr:nth-child(even){background:#fafaf8}
+h4{font-size:.82em;text-transform:uppercase;letter-spacing:.05em;background:#f3f3f0;padding:3px 7px;border-left:2px solid #ccc;color:#111}
+th{background:#f3f3f0!important;color:#111!important;border-bottom:2px solid #ccc}</style></head><body>
 <div class="hdr"><strong>TaxMind</strong><small>${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}</small></div>
 
 ${html}<div class="ftr">Generated by TaxMind · For professional reference only · Verify with current Act text</div>

@@ -110,14 +110,17 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
 .md h4{font-size:.78rem;font-weight:700;color:var(--ink);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.06em;background:var(--paper-3);padding:4px 8px;border-radius:3px;border-left:3px solid var(--rule-mid)}
 .calc-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.82rem;font-family:'Geist Mono',monospace;border:1px solid var(--rule)}
 .calc-table td{padding:6px 12px;border:none;border-bottom:1px solid var(--rule)}
-.calc-table td:last-child{text-align:right;font-variant-numeric:tabular-nums}
-.calc-table tr:nth-child(even){background:var(--paper-2)}
-.calc-table tr.calc-head td{background:var(--paper-3);color:var(--ink);font-family:'Geist',sans-serif;font-size:.74rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:7px 12px;border-bottom:2px solid var(--rule-mid)}
-.calc-table tr.calc-sep td{border-top:1px solid var(--rule-mid);padding:0;background:transparent;border-bottom:none}
-.calc-table tr.calc-total td{font-weight:700;color:var(--ink);border-top:2px solid var(--rule-mid);border-bottom:2px solid var(--rule-mid);background:var(--paper-3)}
-.calc-amt{font-weight:500;text-align:right}
+.calc-table td:first-child{width:68%}
+.calc-table td.calc-amt{width:32%;text-align:right;font-variant-numeric:tabular-nums;font-weight:500;color:var(--ink)}
+.calc-table tr:nth-child(even) td{background:var(--paper-2)}
+.calc-table tr.calc-head td{background:var(--paper-3);color:var(--ink);font-family:'Geist',sans-serif;font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:7px 12px;border-bottom:2px solid var(--rule-mid)}
+.calc-table tr.calc-label td{color:var(--ink-2);padding-left:20px}
+.calc-table tr.calc-sub td:first-child{padding-left:20px;color:var(--ink-2)}
+.calc-table tr.calc-sep td{border-top:1px solid var(--rule-mid);padding:0;background:transparent!important;border-bottom:none}
+.calc-table tr.calc-total td{font-weight:700;color:var(--ink);border-top:2px solid var(--rule-mid);border-bottom:2px solid var(--rule-mid);background:var(--paper-3)!important}
+.calc-amt{text-align:right}
 .code-block{background:var(--paper-3);border:1px solid var(--rule);border-radius:var(--r);padding:10px 14px;margin:8px 0;overflow-x:auto}
-.code-block pre{font-family:'Geist Mono',monospace;font-size:.78rem;margin:0;white-space:pre;color:var(--ink)}
+.code-block pre{font-family:'Geist Mono',monospace;font-size:.78rem;margin:0;white-space:pre;color:var(--ink)}ar(--ink)}
 .typing{display:flex;gap:4px;padding:11px 15px;background:var(--paper);border:1px solid var(--rule);border-radius:8px;border-top-left-radius:2px;box-shadow:var(--shadow-sm);align-items:center}
 .dot{width:5px;height:5px;background:var(--ink-3);border-radius:50%;animation:dots 1.2s infinite}
 .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
@@ -1200,29 +1203,49 @@ function md(t){
   // 1. Fenced code blocks — convert calculation blocks to styled tables
   t = t.replace(/```[\w]*\n([\s\S]*?)```/g, (_, code) => {
     const lines = code.split('\n').filter(l => l.trim());
-    // Check if it looks like a calculation table (has multiple lines with amounts)
-    const isCalc = lines.some(l => /[\d,]+/.test(l)) && lines.length > 2;
-    if(isCalc){
-      const rows = lines.map(l => {
-        // Split on 2+ spaces or tab to get label vs amount
-        const parts = l.split(/\s{2,}|\t/);
-        if(parts.length >= 2){
-          const label = parts[0].trim();
-          const val = parts.slice(1).join(' ').trim();
-          // Detect separator lines
-          if(/^[─\-═=]+$/.test(label)) return '<tr class="calc-sep"><td colspan="2"></td></tr>';
-          // Bold total lines
-          const isTot = /^(total|net|tax|payable|balance|grand|amount due|less|add)/i.test(label);
-          return `<tr${isTot?' class="calc-total"':''}><td>${label}</td><td class="calc-amt">${val}</td></tr>`;
-        }
-        // Single column line (headings like "Computation of...")
-        const isSep = /^[─\-═=]+$/.test(l.trim());
-        if(isSep) return '<tr class="calc-sep"><td colspan="2"></td></tr>';
-        return `<tr class="calc-head"><td colspan="2"><strong>${l.trim()}</strong></td></tr>`;
-      }).join('');
-      return `<table class="calc-table">${rows}</table>`;
-    }
-    return `<div class="code-block"><pre>${code}</pre></div>`;
+    const isCalc = lines.some(l => /[\d,₹]+/.test(l)) && lines.length > 2;
+    if(!isCalc) return `<div class="code-block"><pre>${code}</pre></div>`;
+
+    const rows = lines.map(l => {
+      const raw = l.trim();
+      // Separator line
+      if(/^[─\-═=─]{3,}$/.test(raw)) return '<tr class="calc-sep"><td colspan="2"></td></tr>';
+
+      // Try split strategies in order of preference:
+      // 1. Tab character
+      // 2. Two or more spaces
+      // 3. Amount at end: last token that looks like a number/amount
+      let label = '', val = '';
+      if(raw.includes('\t')){
+        const p = raw.split('\t');
+        label = p[0].trim(); val = p.slice(1).join(' ').trim();
+      } else if(/\s{2,}/.test(raw)){
+        const p = raw.split(/\s{2,}/);
+        label = p[0].trim(); val = p.slice(1).join(' ').trim();
+      } else {
+        // Match trailing amount: optional sign, optional ₹, digits, commas, optional decimals
+        const m = raw.match(/^(.*?)\s+([-−(]?\s*₹?\s*[\d,]+(?:\.\d+)?[)]?)$/);
+        if(m){ label = m[1].trim(); val = m[2].trim(); }
+        else { label = raw; val = ''; }
+      }
+
+      // No amount found — treat as section header
+      if(!val){
+        // Check if it's a separator keyword
+        const isHead = /^(particulars|computation|sl\.?\s*no|s\.?\s*no)/i.test(label);
+        const isSect = /^(scenario|tax calculation|deductions under|income under|monthly|annual|gross|net taxable)/i.test(label);
+        if(isHead || isSect)
+          return `<tr class="calc-head"><td colspan="2"><strong>${label}</strong></td></tr>`;
+        return `<tr class="calc-label"><td colspan="2">${label}</td></tr>`;
+      }
+
+      const isTot = /^(total|net|grand|tax liability|tax payable|balance|amount payable|amount due)/i.test(label);
+      const isSub = /^(less|add|minus|plus)/i.test(label);
+      const cls = isTot ? ' class="calc-total"' : isSub ? ' class="calc-sub"' : '';
+      return `<tr${cls}><td>${label}</td><td class="calc-amt">${val}</td></tr>`;
+    }).join('');
+
+    return `<table class="calc-table">${rows}</table>`;
   });
 
   // 2. Inline code

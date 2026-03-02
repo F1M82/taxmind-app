@@ -1,0 +1,62 @@
+[
+  {
+    "q": "What is the standard deduction for 2024?",
+    "a": "For 2024: $14,600 single, $29,200 married jointly, $21,900 head of household."
+  },
+  {
+    "q": "What are the 2024 federal income tax brackets?",
+    "a": "10% up to $11,600, 12% to $47,150, 22% to $100,525, 24% to $191,950, 32% to $243,725, 35% to $609,350, 37% above."
+  },
+  {
+    "q": "What is the capital gains tax rate?",
+    "a": "Long-term gains taxed at 0%, 15%, or 20% based on income. Short-term gains taxed as ordinary income."
+  },
+  {
+    "q": "Can I deduct home office expenses?",
+    "a": "Self-employed can deduct home office if used exclusively for business. Use simplified ($5/sqft) or regular method."
+  },
+  {
+    "q": "What is the 401k contribution limit for 2024?",
+    "a": "$23,000 for 2024, plus $7,500 catch-up if age 50+, totaling $30,500."
+  },
+  {
+    "q": "What is a W-2 form?",
+    "a": "Employer form showing annual wages and taxes withheld. Used to file federal and state returns."
+  },
+  {
+    "q": "What is a 1099 form?",
+    "a": "Reports non-wage income: 1099-NEC for contractors, 1099-INT for interest, 1099-DIV for dividends."
+  },
+  {
+    "q": "What are estimated taxes?",
+    "a": "Quarterly payments for self-employment/investment income. Due April 15, June 17, September 16, January 15."
+  },
+  {
+    "q": "What expenses can a freelancer deduct?",
+    "a": "Home office, vehicle, equipment, software, professional development, health insurance, half of SE tax."
+  },
+  {
+    "q": "What is the child tax credit for 2024?",
+    "a": "Up to $2,000 per child under 17, $1,600 refundable. Phases out at $200k single, $400k married."
+  },
+  {
+    "q": "What triggers an IRS audit?",
+    "a": "High deduction ratios, unreported income, large charitable deductions, repeated business losses."
+  },
+  {
+    "q": "What is the self-employment tax rate?",
+    "a": "15.3% on net SE income: 12.4% Social Security + 2.9% Medicare. Deduct half from AGI."
+  },
+  {
+    "q": "What is a Schedule C?",
+    "a": "Reports sole proprietor business profit/loss filed with Form 1040. Net profit subject to SE tax."
+  },
+  {
+    "q": "What is a Roth IRA?",
+    "a": "After-tax retirement account. Contributions not deductible but qualified withdrawals tax-free. 2024 limit $7,000."
+  },
+  {
+    "q": "What is AMT?",
+    "a": "Alternative Minimum Tax ensures minimum payment. 2024 exemption $85,700 single. Pay higher of regular or AMT."
+  }
+]

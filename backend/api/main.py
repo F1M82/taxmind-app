@@ -1,4 +1,4 @@
-"""api/main.py — TaxMind FastAPI backend"""
+﻿"""api/main.py â€” TaxMind FastAPI backend"""
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -12,7 +12,7 @@ import tempfile
 app = FastAPI(title="TaxMind API", version="2.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# ── Request models ────────────────────────────────────────────────────────────
+# â”€â”€ Request models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class TaxPredictRequest(BaseModel):
     gross_income: float = Field(..., example=85000.0)
@@ -53,12 +53,16 @@ class AgentRequest(BaseModel):
     history: Optional[list] = []
     use_langgraph: bool = True
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+# â”€â”€ Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.get("/health")
 def health():
-    from services.cache_service import cache_stats
-    return {"status": "ok", "version": "2.0.0", "cache": cache_stats()}
+    try:
+        from services.cache_service import cache_stats
+        cache = cache_stats()
+    except:
+        cache = {"status": "unavailable"}
+    return {"status": "ok", "version": "2.0.0", "cache": cache}
 
 @app.post("/predict/tax")
 def predict_tax(req: TaxPredictRequest):
@@ -143,3 +147,4 @@ if __name__ == "__main__":
     uvicorn.run("api.main:app", host="0.0.0.0",
                 port=int(os.getenv("PORT", 8000)),
                 reload=os.getenv("APP_ENV") == "development")
+

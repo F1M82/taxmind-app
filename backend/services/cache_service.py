@@ -1,23 +1,29 @@
-"""services/cache_service.py — Redis semantic + exact caching"""
+﻿"""services/cache_service.py - Redis semantic + exact caching (Railway-safe)"""
 import os, json, hashlib
 import numpy as np
 import redis
-from sentence_transformers import SentenceTransformer
 
-REDIS_URL   = os.getenv("REDIS_URL", "redis://localhost:6379")
-TTL         = int(os.getenv("CACHE_TTL_SECONDS", 3600))
-SIM_THRESH  = float(os.getenv("CACHE_SIM_THRESHOLD", 0.92))
-MODEL_NAME  = "all-MiniLM-L6-v2"
+REDIS_URL  = os.getenv("REDIS_URL", "redis://localhost:6379")
+TTL        = int(os.getenv("CACHE_TTL_SECONDS", 3600))
+SIM_THRESH = float(os.getenv("CACHE_SIM_THRESHOLD", 0.92))
 
-_r, _m = None, None
+_r = None
+
 def _redis():
     global _r
-    if _r is None: _r = redis.from_url(REDIS_URL, decode_responses=False)
+    if _r is None:
+        _r = redis.from_url(REDIS_URL, decode_responses=False)
     return _r
-def _model():
-    global _m
-    if _m is None: _m = SentenceTransformer(MODEL_NAME)
-    return _m
+
+def _get_embedding(text):
+    provider = os.getenv("EMBEDDING_PROVIDER", "openai")
+    if provider == "local":
+        from sentence_transformers import SentenceTransformer
+        m = SentenceTransformer("all-MiniLM-L6-v2")
+        return m.encode([text], normalize_embeddings=True)[0]
+    else:
+        from services.embedding_service import get_single_embedding
+        return np.array(get_single_embedding(text))
 
 def _key(q):     return f"taxmind:exact:{hashlib.md5(q.lower().strip().encode()).hexdigest()}"
 def _emb_key(q): return f"taxmind:emb:{hashlib.md5(q.lower().strip().encode()).hexdigest()}"
@@ -34,7 +40,7 @@ def set_exact(query, result):
 
 def get_semantic(query):
     try:
-        r, q_emb = _redis(), _model().encode([query], normalize_embeddings=True)[0]
+        r, q_emb = _redis(), _get_embedding(query)
         best_score, best_key = 0.0, None
         for k in r.scan_iter("taxmind:emb:*"):
             data = r.get(k)
@@ -45,14 +51,13 @@ def get_semantic(query):
         if best_score >= SIM_THRESH and best_key:
             v = r.get(best_key)
             if v:
-                print(f"💾 Semantic cache hit (similarity: {best_score:.3f})")
                 return json.loads(v)
     except: pass
     return None
 
 def set_semantic(query, result):
     try:
-        r, q_emb = _redis(), _model().encode([query], normalize_embeddings=True)[0]
+        r, q_emb = _redis(), _get_embedding(query)
         rk = _key(query)
         r.setex(rk, TTL, json.dumps(result))
         r.setex(_emb_key(query), TTL, json.dumps({"embedding": q_emb.tolist(), "result_key": rk, "query": query}))
@@ -74,7 +79,7 @@ def cache_stats():
         hits, misses = info.get("keyspace_hits", 0), info.get("keyspace_misses", 0)
         return {"total_keys": r.dbsize(), "hits": hits, "misses": misses,
                 "hit_rate": round(hits / max(hits + misses, 1), 4)}
-    except Exception as e: return {"error": str(e)}
+    except Exception as e: return {"error": str(e), "status": "redis_unavailable"}
 
 def flush_cache():
     try:

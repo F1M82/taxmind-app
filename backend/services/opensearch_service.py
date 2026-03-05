@@ -6,6 +6,9 @@ HOST  = os.getenv("OPENSEARCH_URL", "http://localhost:9200")
 INDEX = os.getenv("OPENSEARCH_INDEX", "taxmind-knowledge")
 
 def _client():
+    if HOST.startswith("https"):
+        from opensearchpy import RequestsHttpConnection
+        return OpenSearch(HOST, verify_certs=False, ssl_show_warn=False, connection_class=RequestsHttpConnection, use_ssl=True)
     return OpenSearch(HOST, verify_certs=False, ssl_show_warn=False)
 
 def _embed(texts):
@@ -45,3 +48,5 @@ def hybrid_search(query, top_k=3):
 
 def delete_index():
     _client().indices.delete(index=INDEX, params={"ignore_unavailable": "true"})
+
+

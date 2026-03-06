@@ -109,3 +109,71 @@ def delete_collection():
     client = _client()
     client.delete_collection(COLLECTION_NAME)
     print(f"Deleted collection '{COLLECTION_NAME}'")
+
+
+JUDGMENTS_COLLECTION = os.getenv("QDRANT_JUDGMENTS_COLLECTION", "taxmind-judgments")
+
+
+def search_judgments(query: str, top_k: int = 5, filters: dict = None) -> list:
+    """Search case law corpus for litigation risk analysis."""
+    try:
+        from qdrant_client.models import Filter, FieldCondition, MatchValue
+        client = _client()
+
+        # Build filter if provided
+        qdrant_filter = None
+        if filters:
+            conditions = []
+            if filters.get("section"):
+                conditions.append(FieldCondition(key="sections", match=MatchValue(value=filters["section"])))
+            if filters.get("outcome"):
+                conditions.append(FieldCondition(key="outcome", match=MatchValue(value=filters["outcome"])))
+            if conditions:
+                qdrant_filter = Filter(must=conditions)
+
+        # Scroll-based keyword search (no vectors needed)
+        records, _ = client.scroll(
+            collection_name=JUDGMENTS_COLLECTION,
+            scroll_filter=qdrant_filter,
+            limit=top_k * 3,
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        # Score by keyword relevance
+        query_words = set(query.lower().split())
+        scored = []
+        for r in records:
+            p = r.payload
+            if p.get("doc_type") == "risk_signal":
+                continue
+            text = " ".join([
+                p.get("litigation_trigger", ""),
+                p.get("key_facts", ""),
+                p.get("ratio_decidendi", ""),
+                " ".join(p.get("sections", [])),
+            ]).lower()
+            score = sum(1 for w in query_words if w in text)
+            scored.append((score, p))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+
+        return [
+            {
+                "judgment_id": p.get("judgment_id", ""),
+                "court": p.get("court", ""),
+                "bench": p.get("bench", ""),
+                "outcome": p.get("outcome", ""),
+                "risk_level": p.get("risk_level", ""),
+                "litigation_trigger": p.get("litigation_trigger", ""),
+                "ratio_decidendi": p.get("ratio_decidendi", ""),
+                "winning_argument": p.get("winning_argument", ""),
+                "mitigation_signals": p.get("mitigation_signals", []),
+                "sections": p.get("sections", []),
+                "source_url": p.get("source_url", ""),
+                "score": s,
+            }
+            for s, p in scored[:top_k]
+        ]
+    except Exception as e:
+        return [{"error": str(e)}]

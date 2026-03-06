@@ -12,8 +12,6 @@ import tempfile
 app = FastAPI(title="TaxMind API", version="2.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# ── Request models ────────────────────────────────────────────────────────────
-
 class TaxPredictRequest(BaseModel):
     gross_income: float = Field(..., example=85000.0)
     investment_income: float = 0.0
@@ -53,7 +51,10 @@ class AgentRequest(BaseModel):
     history: Optional[list] = []
     use_langgraph: bool = True
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+class LitigationRiskRequest(BaseModel):
+    query: str
+    section: Optional[str] = None
+    top_k: int = Field(5, ge=1, le=10)
 
 @app.get("/health")
 def health():
@@ -137,6 +138,33 @@ def search(q: str, top_k: int = 3):
         from services.qdrant_service import hybrid_search
         return {"success": True, "results": hybrid_search(q, top_k)}
     except Exception as e: raise HTTPException(500, str(e))
+
+@app.post("/litigation/risk")
+def litigation_risk(req: LitigationRiskRequest):
+    try:
+        from services.qdrant_service import search_judgments
+        import anthropic
+        judgments = search_judgments(req.query, top_k=req.top_k, filters={"section": req.section} if req.section else None)
+        if not judgments or "error" in judgments[0]:
+            return {"success": False, "error": "No judgments found"}
+        cases_text = ""
+        for i, j in enumerate(judgments, 1):
+            cases_text += f"\nCase {i}: {j.get('judgment_id','')}\nOutcome: {j.get('outcome','')}\nTrigger: {j.get('litigation_trigger','')}\nRatio: {j.get('ratio_decidendi','')}\nWinning argument: {j.get('winning_argument','')}\nMitigation: {', '.join(j.get('mitigation_signals', []))}\n"
+        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        prompt = f"A CA asks: {req.query}\n\nRelevant case law:\n{cases_text}\n\nProvide a concise litigation risk assessment: (1) Risk level, (2) Why this triggers scrutiny, (3) Key precedents, (4) Top 3 mitigation strategies."
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return {
+            "success": True,
+            "risk_assessment": response.content[0].text,
+            "supporting_cases": judgments,
+            "cases_analyzed": len(judgments)
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 if __name__ == "__main__":
     import uvicorn

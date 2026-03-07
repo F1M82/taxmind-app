@@ -115,10 +115,4 @@ def run_langgraph_agent(query, provider=None, history=None):
     set_exact(query, output)
     set_semantic(query, output)
     return output
-```
-
-Press `Ctrl+S`, then run:
-```
-git add -A
-git commit -m "Fix langgraph agent corruption"
-git push
+  

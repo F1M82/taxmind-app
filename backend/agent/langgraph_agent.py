@@ -27,46 +27,24 @@ def guardrail_node(state):
     result = _llm().invoke([HumanMessage(content=
         f"Is this a tax, financial, or accounting question? Answer YES or NO only.\nQuery: {state['query']}")])
     is_tax = "YES" in result.content.upper()
-    print(f"🛡️  Guardrail: {'✅ Tax query' if is_tax else '❌ Non-tax query'}")
+    print(f"Guardrail: {'Tax query' if is_tax else 'Non-tax query'}")
     return {**state, "is_tax_query": is_tax}
 
 def query_rewriter_node(state):
     result = _llm().invoke([HumanMessage(content=
         f"Rewrite this tax question to be more specific for search. Return only the rewritten question.\nOriginal: {state['query']}")])
     rewritten = result.content.strip()
-    print(f"✏️  Rewritten: {rewritten}")
+    print(f"Rewritten: {rewritten}")
     return {**state, "rewritten_query": rewritten, "retry_count": state["retry_count"] + 1}
 
 def retrieval_node(state):
     query = state.get("rewritten_query") or state["query"]
     try:
         from services.qdrant_service import hybrid_search
-```
-
-Press `Ctrl+S`.
-
-**Step 2 — Delete opensearch_service.py**
-```
-del backend\services\opensearch_service.py
-```
-
-**Step 3 — Commit everything:**
-```
-git add -A
-git commit -m "Remove OpenSearch, use Qdrant everywhere"
-git push
         docs = hybrid_search(query, top_k=3)
-        print(f"🔍 Retrieved {len(docs)} docs from Qdrant")
+        print(f"Retrieved {len(docs)} docs from Qdrant")
     except Exception as e:
-        print(f"⚠️ Qdrant fallback: {e}")
-```
-
-Press `Ctrl+S`. Then run in PowerShell:
-```
-del backend\services\opensearch_service.py
-git add -A
-git commit -m "Remove OpenSearch, use Qdrant everywhere"
-git push
+        print(f"Qdrant fallback: {e}")
         from models.tax_qa import retrieve
         docs = [{"question": r["question"], "answer": r["answer"], "score": r["similarity_score"]}
                 for r in retrieve(query, top_k=3)]
@@ -76,21 +54,21 @@ def grader_node(state):
     grades = []
     for doc in state["retrieved_docs"]:
         r = _llm().invoke([HumanMessage(content=
-            f"Is this document relevant to the question? YES or NO only.\nQ: {state['query']}\nDoc: {doc['answer']}")])
+            f"Is this document relevant to the question? YES or NO only.\nQ: {state['query']}\nDoc: {doc.get('answer', doc.get('text', ''))}")])
         grades.append("YES" in r.content.upper())
-    print(f"📋 Grading: {sum(grades)}/{len(grades)} relevant")
+    print(f"Grading: {sum(grades)}/{len(grades)} relevant")
     return {**state, "doc_grades": grades}
 
 def generator_node(state):
     relevant = [d for d, g in zip(state["retrieved_docs"], state["doc_grades"]) if g]
-    context = "\n\n".join(f"[{i+1}] Q: {d['question']}\n    A: {d['answer']}" for i, d in enumerate(relevant))
+    context = "\n\n".join(f"[{i+1}] {d.get('answer', d.get('text', ''))}" for i, d in enumerate(relevant))
     result = _llm().invoke([HumanMessage(content=
-        f"You are TaxMind, an expert AI tax assistant.\n\nContext:\n{context or 'No relevant context.'}\n\nQuestion: {state['query']}\n\nProvide a clear answer. Always recommend consulting a licensed CPA for specific advice.")])
-    print(f"✅ Answer generated ({len(result.content)} chars)")
+        f"You are TaxMind, an expert Indian tax assistant.\n\nContext:\n{context or 'No relevant context.'}\n\nQuestion: {state['query']}\n\nProvide a clear answer. Always recommend consulting a licensed CA for specific advice.")])
+    print(f"Answer generated ({len(result.content)} chars)")
     return {**state, "final_answer": result.content, "tools_used": state["tools_used"] + ["llm_generator"]}
 
 def rejection_node(state):
-    return {**state, "final_answer": "I'm TaxMind, specialized in tax and financial questions. Please ask me about taxes, deductions, filing, or related topics."}
+    return {**state, "final_answer": "I'm TaxMind, specialized in Indian tax and financial questions. Please ask me about taxes, deductions, filing, or related topics."}
 
 def route_guardrail(state):  return "rewriter" if state["is_tax_query"] else "rejection"
 def route_grader(state):
@@ -136,4 +114,11 @@ def run_langgraph_agent(query, provider=None, history=None):
               "retry_count": result["retry_count"], "cached": False}
     set_exact(query, output)
     set_semantic(query, output)
-    return output   
+    return output
+```
+
+Press `Ctrl+S`, then run:
+```
+git add -A
+git commit -m "Fix langgraph agent corruption"
+git push

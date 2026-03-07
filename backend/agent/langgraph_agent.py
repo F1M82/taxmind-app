@@ -40,11 +40,33 @@ def query_rewriter_node(state):
 def retrieval_node(state):
     query = state.get("rewritten_query") or state["query"]
     try:
-        from services.opensearch_service import hybrid_search
+        from services.qdrant_service import hybrid_search
+```
+
+Press `Ctrl+S`.
+
+**Step 2 — Delete opensearch_service.py**
+```
+del backend\services\opensearch_service.py
+```
+
+**Step 3 — Commit everything:**
+```
+git add -A
+git commit -m "Remove OpenSearch, use Qdrant everywhere"
+git push
         docs = hybrid_search(query, top_k=3)
-        print(f"🔍 Retrieved {len(docs)} docs from OpenSearch")
+        print(f"🔍 Retrieved {len(docs)} docs from Qdrant")
     except Exception as e:
-        print(f"⚠️ OpenSearch fallback: {e}")
+        print(f"⚠️ Qdrant fallback: {e}")
+```
+
+Press `Ctrl+S`. Then run in PowerShell:
+```
+del backend\services\opensearch_service.py
+git add -A
+git commit -m "Remove OpenSearch, use Qdrant everywhere"
+git push
         from models.tax_qa import retrieve
         docs = [{"question": r["question"], "answer": r["answer"], "score": r["similarity_score"]}
                 for r in retrieve(query, top_k=3)]
@@ -114,4 +136,4 @@ def run_langgraph_agent(query, provider=None, history=None):
               "retry_count": result["retry_count"], "cached": False}
     set_exact(query, output)
     set_semantic(query, output)
-    return output
+    return output   

@@ -1,5 +1,6 @@
-"""api/main.py — TaxMind FastAPI backend"""
+"""api/main.py - TaxMind FastAPI backend"""
 import os
+import traceback
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -50,6 +51,7 @@ class AgentRequest(BaseModel):
     task: Optional[str] = None
     history: Optional[list] = []
     use_langgraph: bool = True
+    domain: str = Field("it", description="it|gst")
 
 class LitigationRiskRequest(BaseModel):
     query: str
@@ -67,7 +69,7 @@ def predict_tax(req: TaxPredictRequest):
         from models.tax_predictor import predict
         return {"success": True, "prediction": predict(req.model_dump())}
     except FileNotFoundError: raise HTTPException(503, "Model not trained.")
-    except Exception as e:    raise HTTPException(500, str(e))
+    except Exception as e: raise HTTPException(500, str(e))
 
 @app.post("/classify/document")
 def classify_doc(req: DocTextRequest):
@@ -75,7 +77,7 @@ def classify_doc(req: DocTextRequest):
         from models.doc_classifier import classify
         return {"success": True, "classification": classify(req.text)}
     except FileNotFoundError: raise HTTPException(503, "Model not trained.")
-    except Exception as e:    raise HTTPException(500, str(e))
+    except Exception as e: raise HTTPException(500, str(e))
 
 @app.post("/classify/document/upload")
 async def classify_upload(file: UploadFile = File(...)):
@@ -95,7 +97,7 @@ def detect_anomaly(req: AnomalyRequest):
         from models.anomaly_detector import detect
         return {"success": True, "detection": detect(req.model_dump())}
     except FileNotFoundError: raise HTTPException(503, "Model not trained.")
-    except Exception as e:    raise HTTPException(500, str(e))
+    except Exception as e: raise HTTPException(500, str(e))
 
 @app.post("/qa/ask")
 def ask(req: QARequest):
@@ -106,21 +108,36 @@ def ask(req: QARequest):
         from models.tax_qa import answer_retrieval_only
         return {"success": True, "response": answer_retrieval_only(req.question, req.top_k)}
     except FileNotFoundError: raise HTTPException(503, "Vector store not built.")
-    except Exception as e:    raise HTTPException(500, str(e))
+    except Exception as e: raise HTTPException(500, str(e))
 
 @app.post("/agent/chat")
 def agent_chat(req: AgentRequest):
     try:
-        if req.use_langgraph:
+        if req.domain == "gst":
+            from services.qdrant_service import search_gst
+            import anthropic
+            results = search_gst(req.message, top_k=5)
+            context = ""
+            for i, r in enumerate(results, 1):
+                context += f"\n[{i}] {r.get('title','')} ({r.get('content_type','')})\n{r.get('ratio_decidendi','')}\n"
+            client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            system = "You are TaxMind, an expert Indian GST assistant. Answer questions about GST Act, rules, circulars and rates. Always cite relevant sections. Recommend consulting a CA for specific advice."
+            prompt = f"GST Context:\n{context}\n\nQuestion: {req.message}"
+            response = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=1500,
+                system=system,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return {"success": True, "response": {"answer": response.content[0].text, "domain": "gst", "sources": len(results), "cached": False}}
+        else:
             from agent.langgraph_agent import run_langgraph_agent
             result = run_langgraph_agent(req.message, provider=req.provider, history=req.history)
-        else:
-            from agent.taxmind_agent import run_agent
-            result = run_agent(req.message, req.history, req.provider, req.task)
-        from services.monitoring import log_agent_run
-        log_agent_run(req.message, result, req.provider)
-        return {"success": True, "response": result}
-    except Exception as e: raise HTTPException(500, str(e))
+            from services.monitoring import log_agent_run
+            log_agent_run(req.message, result, req.provider)
+            return {"success": True, "response": {**result, "domain": "it"}}
+    except Exception as e:
+        raise HTTPException(500, detail=traceback.format_exc())
 
 @app.get("/cache/stats")
 def get_cache_stats():
@@ -165,6 +182,13 @@ def litigation_risk(req: LitigationRiskRequest):
         }
     except Exception as e:
         raise HTTPException(500, str(e))
+
+@app.get("/gst/search")
+def gst_search(q: str, top_k: int = 5):
+    try:
+        from services.qdrant_service import search_gst
+        return {"success": True, "results": search_gst(q, top_k)}
+    except Exception as e: raise HTTPException(500, str(e))
 
 if __name__ == "__main__":
     import uvicorn

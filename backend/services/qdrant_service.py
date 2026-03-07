@@ -177,3 +177,50 @@ def search_judgments(query: str, top_k: int = 5, filters: dict = None) -> list:
         ]
     except Exception as e:
         return [{"error": str(e)}]
+
+
+GST_COLLECTION = os.getenv("QDRANT_GST_COLLECTION", "taxmind-gst")
+
+
+def search_gst(query: str, top_k: int = 5) -> list:
+    """Search GST corpus."""
+    try:
+        client = _client()
+        records, _ = client.scroll(
+            collection_name=GST_COLLECTION,
+            limit=top_k * 3,
+            with_payload=True,
+            with_vectors=False,
+        )
+        query_words = set(query.lower().split())
+        scored = []
+        for r in records:
+            p = r.payload
+            text = " ".join([
+                p.get("title", ""),
+                p.get("ratio_decidendi", ""),
+                p.get("key_facts", ""),
+                " ".join(p.get("sections", [])),
+            ]).lower()
+            score = sum(1 for w in query_words if w in text)
+            scored.append((score, p))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [
+            {
+                "judgment_id": p.get("judgment_id", ""),
+                "content_type": p.get("content_type", ""),
+                "title": p.get("title", ""),
+                "court": p.get("court", ""),
+                "bench": p.get("bench", ""),
+                "ratio_decidendi": p.get("ratio_decidendi", ""),
+                "sections": p.get("sections", []),
+                "source_url": p.get("source_url", ""),
+                "hsn": p.get("hsn", ""),
+                "rate": p.get("rate", ""),
+                "circular_number": p.get("circular_number", ""),
+                "score": s,
+            }
+            for s, p in scored[:top_k]
+        ]
+    except Exception as e:
+        return [{"error": str(e)}]

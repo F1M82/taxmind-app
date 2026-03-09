@@ -1428,7 +1428,7 @@ function renderGSTSectionTable(sections, totalEntries){
   tbody.innerHTML = sections.map((s,i) => {
     const barPct = Math.round(s.count/max*100);
     return `<tr style="${i%2===1?'background:var(--paper-2)':''}">
-      <td style="padding:6px 12px;font-family:'Geist Mono',monospace;font-size:11px;font-weight:600;color:var(--ink)">${s.section}</td>
+      <td style="padding:6px 12px;font-family:'Geist Mono',monospace;font-size:11px;font-weight:600;color:var(--ink)">${s.section.replace(/SECTION_/g, "Section ").replace(/_/g, " ")}</td>
       <td style="padding:6px 8px;text-align:right;font-family:'Geist Mono',monospace;font-size:11px;color:var(--text-2)">${s.count}</td>
       <td style="padding:6px 14px;min-width:100px">
         <div style="height:5px;background:var(--paper-3);border-radius:3px;overflow:hidden">

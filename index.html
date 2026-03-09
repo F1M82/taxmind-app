@@ -1340,7 +1340,7 @@ async function loadDashboard(){
     '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text-3);font-size:12px">Fetching from Qdrant…</td></tr>';
 
   try {
-    const res = await fetch('http://localhost:8000/analytics/litigation');
+    const res = await fetch('https://taxmind-app-production.up.railway.app/analytics/litigation');
     if(!res.ok) throw new Error('HTTP '+res.status);
     const d = await res.json();
     dashLoaded = true;
@@ -1385,7 +1385,7 @@ async function loadGSTDashboard(){
     '<tr><td colspan="3" style="padding:32px;text-align:center;color:var(--text-3);font-size:12px">Fetching from Qdrant…</td></tr>';
 
   try {
-    const res = await fetch('http://localhost:8000/analytics/gst');
+    const res = await fetch('https://taxmind-app-production.up.railway.app/analytics/gst');
     if(!res.ok) throw new Error('HTTP '+res.status);
     const d = await res.json();
     gstDashLoaded = true;

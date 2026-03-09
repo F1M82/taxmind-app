@@ -1,132 +1,371 @@
+"""
+GST Act Scraper — CBIC Official PDFs
+Downloads CGST Act 2017 and IGST Act 2017 PDFs from cbic-gst.gov.in,
+extracts section text using pdfplumber, and outputs review queue JSON
+consistent with the taxmind_scraper pipeline.
+
+Usage:
+    python -m scrapers.gst_scraper
+    python -m scrapers.gst_scraper CGST       # single act
+"""
+
 import hashlib
 import json
+import re
+import sys
+from datetime import datetime
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Optional
+
+import pdfplumber
 from loguru import logger
-from bs4 import BeautifulSoup
-from utils.http_client import EthicalHttpClient
+
 from config.settings import settings
+from utils.http_client import EthicalHttpClient
 
-CBIC_CIRCULARS_URL = "https://www.cbic.gov.in/resources//htdocs-cbec/gst/notfctn-cgst-eng.pdf"
-CBIC_BASE = "https://cbic-gst.gov.in"
-
-GST_SECTIONS = [
-    {"section": "2", "title": "Definitions", "act": "CGST", "content": "Section 2 CGST Act 2017: Defines key terms including aggregate turnover, business, capital goods, casual taxable person, composite supply, continuous supply, exempt supply, fixed establishment, goods, input, input service, input tax, input tax credit, mixed supply, non-resident taxable person, outward supply, place of business, principal supply, recipient, reverse charge, supplier, supply, tax invoice, taxable person, taxable supply, taxable territory, zero rated supply."},
-    {"section": "7", "title": "Scope of Supply", "act": "CGST", "content": "Section 7 CGST Act 2017: Supply includes all forms of supply of goods or services for a consideration in the course of furtherance of business. Schedule I activities treated as supply even without consideration. Schedule II activities classified as supply of goods or services. Schedule III activities neither supply of goods nor services."},
-    {"section": "9", "title": "Levy and Collection", "act": "CGST", "content": "Section 9 CGST Act 2017: CGST levied on all intra-state supplies of goods or services at rates not exceeding 20 percent. Section 9(3) reverse charge on notified goods and services. Section 9(4) reverse charge on supplies from unregistered persons to registered persons for notified categories."},
-    {"section": "10", "title": "Composition Levy", "act": "CGST", "content": "Section 10 CGST Act 2017: Registered persons with aggregate turnover up to 1.5 crore may opt for composition scheme. Rate 1 percent for manufacturers, 2.5 percent for restaurants, 0.5 percent for traders. Not applicable for inter-state supplies, e-commerce operators, non-resident taxable persons, casual taxable persons."},
-    {"section": "16", "title": "Input Tax Credit Eligibility", "act": "CGST", "content": "Section 16 CGST Act 2017: Registered person entitled to ITC on goods or services used in course of business. Four conditions: possession of tax invoice, receipt of goods or services, tax actually paid by supplier, return filed. ITC blocked if depreciation claimed on tax component. Time limit to claim ITC is earlier of due date of September return of next FY or date of annual return."},
-    {"section": "17", "title": "Apportionment of ITC", "act": "CGST", "content": "Section 17 CGST Act 2017: ITC not available for goods or services used for exempt supplies. Proportionate ITC for mixed use. Section 17(5) blocked credits: motor vehicles for personal use, food and beverages, outdoor catering, beauty treatment, health services, membership of club, travel benefits to employees, works contract for immovable property, goods or services for personal consumption, goods lost or stolen or destroyed."},
-    {"section": "22", "title": "Registration Threshold", "act": "CGST", "content": "Section 22 CGST Act 2017: Every supplier whose aggregate turnover exceeds 40 lakhs for goods or 20 lakhs for services in a financial year shall be liable to register. Threshold 10 lakhs for special category states. Aggregate turnover includes taxable supplies, exempt supplies, inter-state supplies and exports but excludes inward supplies under reverse charge."},
-    {"section": "24", "title": "Compulsory Registration", "act": "CGST", "content": "Section 24 CGST Act 2017: Compulsory registration regardless of turnover threshold for: inter-state taxable suppliers, casual taxable persons, persons liable to pay tax under reverse charge, e-commerce operators, input service distributors, persons supplying through e-commerce operators, non-resident taxable persons, persons required to deduct TDS."},
-    {"section": "31", "title": "Tax Invoice", "act": "CGST", "content": "Section 31 CGST Act 2017: Registered person supplying taxable goods shall issue tax invoice before or at the time of removal or delivery. For services invoice to be issued within 30 days of supply. Invoice must contain: supplier GSTIN, consecutive serial number, date, recipient details, HSN code, description, quantity, value, taxable value, rate and amount of tax."},
-    {"section": "37", "title": "GSTR-1 Outward Supplies", "act": "CGST", "content": "Section 37 CGST Act 2017: Every registered person shall furnish details of outward supplies in GSTR-1. Monthly filers with turnover above 5 crore file by 11th of following month. Quarterly filers with turnover up to 5 crore file by 13th of month following quarter. Details include B2B invoices, B2C large invoices, credit notes, debit notes, exports."},
-    {"section": "38", "title": "GSTR-2B Auto-drafted ITC", "act": "CGST", "content": "Section 38 CGST Act 2017: Auto-drafted statement of ITC available to recipient based on suppliers GSTR-1 and GSTR-5. Generated on 14th of each month. Recipient can accept, reject or keep pending. ITC available only on accepted invoices. Mismatch between GSTR-2B and purchase register to be reconciled before claiming ITC."},
-    {"section": "39", "title": "GSTR-3B Returns", "act": "CGST", "content": "Section 39 CGST Act 2017: Every registered person shall file monthly return GSTR-3B with summary of outward supplies, ITC claimed, tax payable and tax paid. Monthly filers with turnover above 5 crore file by 20th of following month. Quarterly filers under QRMP scheme file by 22nd or 24th depending on state. Late fee 50 rupees per day, 20 rupees for nil return."},
-    {"section": "44", "title": "Annual Return GSTR-9", "act": "CGST", "content": "Section 44 CGST Act 2017: Every registered person except casual taxable person and non-resident taxable person shall file annual return GSTR-9 by 31st December of following financial year. Reconciliation statement GSTR-9C required if turnover exceeds 5 crore. GSTR-9C to be certified by CA or CMA."},
-    {"section": "50", "title": "Interest on Late Payment", "act": "CGST", "content": "Section 50 CGST Act 2017: Interest at 18 percent per annum on delayed payment of tax. Interest at 24 percent for wrongful availment and utilization of ITC. Interest calculated on net tax liability after adjusting ITC. Interest to be paid from next day after due date to actual date of payment."},
-    {"section": "54", "title": "Refund of Tax", "act": "CGST", "content": "Section 54 CGST Act 2017: Refund application to be filed within 2 years from relevant date. Relevant date for export of goods is date of departure of ship or aircraft. For services export relevant date is date of receipt of payment in convertible foreign exchange. Refund of ITC accumulated due to inverted duty structure or zero rated supplies without payment of tax."},
-    {"section": "61", "title": "Scrutiny of Returns", "act": "CGST", "content": "Section 61 CGST Act 2017: Proper officer may scrutinize return to verify correctness. Notice issued to registered person to explain discrepancies. Person to provide explanation within 30 days or extended time. If explanation found acceptable no further action. If discrepancy confirmed demand may be raised under section 73 or 74."},
-    {"section": "73", "title": "Demand Non-Fraud Cases", "act": "CGST", "content": "Section 73 CGST Act 2017: Show cause notice for recovery of tax not paid or short paid or erroneously refunded or ITC wrongly availed without fraud. Time limit 3 years from due date of annual return. Penalty 10 percent of tax or 10000 rupees whichever is higher. No penalty if tax, interest and penalty paid within 30 days of show cause notice."},
-    {"section": "74", "title": "Demand Fraud Cases", "act": "CGST", "content": "Section 74 CGST Act 2017: Show cause notice where tax not paid due to fraud, wilful misstatement or suppression of facts. Time limit 5 years from due date of annual return. Penalty equal to tax amount. Penalty reduced to 15 percent if paid within 30 days of show cause notice, 25 percent if paid within 30 days of order."},
-    {"section": "129", "title": "Detention and Seizure", "act": "CGST", "content": "Section 129 CGST Act 2017: Goods in transit may be detained if not accompanied by valid documents. Penalty 200 percent of tax for taxable goods, 2 percent of value or 25000 rupees for exempt goods. Owner or transporter must pay tax and penalty for release. If not paid within 14 days goods may be confiscated under section 130."},
-    {"section": "130", "title": "Confiscation", "act": "CGST", "content": "Section 130 CGST Act 2017: Goods liable to confiscation if supplied without invoice, invoice not matching goods, HSN code mismatch, goods transported without e-way bill, false declaration made. Owner given option to pay fine in lieu of confiscation. Fine cannot exceed market value of goods minus tax chargeable."},
+# ─── Source PDFs ──────────────────────────────────────────────────────────────
+ACT_SOURCES = [
+    {
+        "act": "CGST",
+        "full_name": "Central Goods and Services Tax Act, 2017",
+        "pdf_url": "https://cbic-gst.gov.in/pdf/CGST-Act-Updated-31082021.pdf",
+        "year": "2017",
+    },
+    {
+        "act": "IGST",
+        "full_name": "Integrated Goods and Services Tax Act, 2017",
+        "pdf_url": "https://cbic-gst.gov.in/pdf/IGST-Act-Updated-31082021.pdf",
+        "year": "2017",
+    },
 ]
 
-GST_CIRCULARS = [
-    {"number": "183/15/2022", "date": "2022-12-27", "subject": "ITC on CSR expenditure", "content": "CBDT Circular 183/15/2022-GST: ITC not available on goods or services procured for CSR activities as CSR expenditure is not in the course or furtherance of business. Section 17(5)(h) blocks ITC on goods disposed of as gift or free samples. CSR activities are statutory obligation and not business activity."},
-    {"number": "172/04/2022", "date": "2022-03-06", "subject": "E-way bill for intra-state movement", "content": "CBDT Circular 172/04/2022-GST: E-way bill required for intra-state movement of goods where value exceeds threshold notified by respective state government. E-way bill valid for one day for every 200 km. Validity extendable by transporter within 8 hours before or after expiry."},
-    {"number": "168/00/2022", "date": "2022-12-17", "subject": "Clarification on various GST issues", "content": "CBDT Circular 168/00/2022-GST: Clarifications on applicability of GST on various services including liquidated damages, notices in lieu of notice period, forfeiture of security deposit, cheque dishonor charges, penalty charges by electricity distribution companies treated as supply of service and liable to GST."},
-    {"number": "178/10/2022", "date": "2022-08-03", "subject": "ITC reversal on credit notes", "content": "CBDT Circular 178/10/2022-GST: Supplier issuing credit note must reverse ITC to the extent of credit note. Recipient must reverse ITC if payment not made within 180 days of invoice date. Rule 37 amended to require reversal of ITC proportionate to unpaid consideration."},
-    {"number": "196/08/2023", "date": "2023-07-17", "subject": "ITC on warranty replacement", "content": "CBDT Circular 196/08/2023-GST: No ITC reversal required by manufacturer on goods sent to dealer for warranty replacement. Dealer not required to reverse ITC on goods returned under warranty. No GST on warranty replacement within warranty period where no separate consideration charged."},
-]
+# ─── Regex Patterns ───────────────────────────────────────────────────────────
 
-GST_RATES = [
-    {"hsn": "0101-0106", "description": "Live animals", "rate": "0", "notes": "Exempt from GST"},
-    {"hsn": "1001-1008", "description": "Cereals including rice wheat maize", "rate": "0-5", "notes": "Unbranded cereals exempt, branded attract 5 percent"},
-    {"hsn": "2709-2710", "description": "Petroleum products", "rate": "0", "notes": "Outside GST, subject to central excise and state VAT"},
-    {"hsn": "3004", "description": "Medicines and pharmaceuticals", "rate": "0-12", "notes": "Life saving drugs nil, others 5-12 percent"},
-    {"hsn": "4901-4911", "description": "Books newspapers periodicals", "rate": "0-12", "notes": "Books exempt, printed materials 5-12 percent"},
-    {"hsn": "6101-6217", "description": "Apparel and clothing", "rate": "5-12", "notes": "Value up to 1000 rupees 5 percent, above 12 percent"},
-    {"hsn": "7201-7229", "description": "Iron and steel products", "rate": "18", "notes": "Most iron and steel products attract 18 percent GST"},
-    {"hsn": "8701-8716", "description": "Vehicles and automobiles", "rate": "28", "notes": "Motor vehicles attract 28 percent plus cess"},
-    {"hsn": "9954", "description": "Construction services", "rate": "5-18", "notes": "Affordable housing 1 percent, other residential 5 percent, commercial 18 percent"},
-    {"hsn": "9963", "description": "Accommodation services", "rate": "0-18", "notes": "Below 1000 rupees exempt, 1000-7500 12 percent, above 7500 18 percent"},
-    {"hsn": "9964", "description": "Passenger transport services", "rate": "0-5", "notes": "Railways economy exempt, AC 5 percent, air economy 5 percent, business 12 percent"},
-    {"hsn": "9983", "description": "Professional and consulting services", "rate": "18", "notes": "Legal, accounting, management consulting services 18 percent"},
-    {"hsn": "9984", "description": "Telecom and internet services", "rate": "18", "notes": "All telecom and internet services 18 percent"},
-    {"hsn": "9985", "description": "Support services", "rate": "18", "notes": "Security, cleaning, packing and other support services 18 percent"},
-    {"hsn": "9992", "description": "Education services", "rate": "0-18", "notes": "Schools and universities exempt, coaching and vocational 18 percent"},
-    {"hsn": "9993", "description": "Health care services", "rate": "0-5", "notes": "Hospital services exempt, health check packages 5 percent"},
-]
+# Matches: "2. Definitions." / "16A. Eligibility..." / "SECTION 9—Levy"
+SECTION_START = re.compile(
+    r"^(\d{1,3}[A-Z]?)\.\s{1,4}([A-Z][^\n]{3,})",
+    re.MULTILINE,
+)
+
+# Cross-references like "section 16" or "section 17(5)"
+SECTION_REF = re.compile(
+    r"[Ss]ection\s+(\d+[A-Za-z]*(?:\([a-z0-9]+\))*)"
+)
+
+# Footnote noise to strip: superscript numbers, amendment notes
+FOOTNOTE_NOISE = re.compile(
+    r"\n\s*\d+\s+(Omitted|Substituted|Inserted|Amended)[^\n]{0,300}",
+    re.IGNORECASE,
+)
+
+MAX_CHUNK_CHARS = 1500
 
 
 class GSTScraper:
+    """
+    Downloads official CBIC PDFs for CGST and IGST Acts, parses section text,
+    and emits review queue JSON for manual approval before Qdrant indexing.
+
+    Follows ITATOnlineScraper conventions:
+      - EthicalHttpClient for rate-limited downloads
+      - Raw PDFs saved to raw_dir for reproducibility
+      - Review queue JSON: data/raw/review_queue/gst_act_<act>_YYYYMMDD.json
+    """
+
     def __init__(self):
-        self.raw_dir = Path(settings.raw_data_dir) / "gst"
+        self.client = EthicalHttpClient(
+            user_agent=settings.user_agent,
+            min_delay=settings.request_delay_seconds,
+            max_per_hour=settings.max_requests_per_hour,
+            respect_robots=settings.respect_robots_txt,
+        )
+        self.raw_dir = Path(settings.raw_data_dir) / "gst_act"
         self.raw_dir.mkdir(parents=True, exist_ok=True)
 
-    def generate_id(self, content_type: str, identifier: str) -> str:
-        key = f"GST-{content_type}-{identifier}"
+        self.review_queue_dir = Path(settings.raw_data_dir) / "review_queue"
+        self.review_queue_dir.mkdir(parents=True, exist_ok=True)
+
+    # ─── ID & Metadata Helpers ────────────────────────────────────────────────
+
+    def generate_id(self, act: str, section_number: str, chunk_index: int = 0) -> str:
+        key = f"GST-ACT-{act}-S{section_number}-C{chunk_index}"
         hash_val = hashlib.md5(key.encode()).hexdigest()[:10].upper()
-        return f"GST-{content_type[:3].upper()}-{hash_val}"
+        return f"GST-ACT-{act}-{hash_val}"
 
-    def get_sections(self) -> Iterator[dict]:
-        for section in GST_SECTIONS:
-            doc_id = self.generate_id("SECTION", section["section"])
+    def _extract_section_refs(self, text: str) -> list[str]:
+        matches = SECTION_REF.findall(text)
+        return list(set(f"section_{m.lower()}" for m in matches))
+
+    # ─── PDF Download ─────────────────────────────────────────────────────────
+
+    def _download_pdf(self, act_meta: dict) -> Optional[Path]:
+        """
+        Download PDF from CBIC. Returns local path, or None on failure.
+        Skips download if file already exists (cache).
+        """
+        act = act_meta["act"]
+        pdf_path = self.raw_dir / f"{act.lower()}_act.pdf"
+
+        if pdf_path.exists():
+            logger.info(f"[{act}] Using cached PDF: {pdf_path}")
+            return pdf_path
+
+        logger.info(f"[{act}] Downloading PDF from {act_meta['pdf_url']}")
+        response = self.client.get(act_meta["pdf_url"])
+        if not response:
+            logger.error(f"[{act}] PDF download failed")
+            return None
+
+        pdf_path.write_bytes(response.content)
+        logger.info(f"[{act}] PDF saved → {pdf_path} ({pdf_path.stat().st_size // 1024} KB)")
+        return pdf_path
+
+    # ─── PDF Text Extraction ──────────────────────────────────────────────────
+
+    def _extract_text_from_pdf(self, pdf_path: Path) -> str:
+        """Extract all text from PDF using pdfplumber."""
+        logger.info(f"Extracting text from {pdf_path.name}")
+        pages = []
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    pages.append(text)
+        full_text = "\n".join(pages)
+        logger.info(f"Extracted {len(full_text):,} chars from {len(pages)} pages")
+        return full_text
+
+    # ─── Text Cleaning ────────────────────────────────────────────────────────
+
+    def _clean_text(self, text: str) -> str:
+        """Strip footnotes, fix hyphenated line breaks, normalize whitespace."""
+        # Remove amendment footnotes
+        text = FOOTNOTE_NOISE.sub("", text)
+        # Fix hyphenated line-breaks (PDF artifact): "suppli-\ned" → "supplied"
+        text = re.sub(r"-\n(\S)", r"\1", text)
+        # Normalize whitespace
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text.strip()
+
+    # ─── Section Parsing ─────────────────────────────────────────────────────
+
+    def _parse_sections(self, text: str, act_meta: dict) -> Iterator[dict]:
+        """
+        Split cleaned text into section dicts.
+        Yields one dict per section (before chunking).
+        """
+        matches = list(SECTION_START.finditer(text))
+        if not matches:
+            logger.warning(f"[{act_meta['act']}] No sections found — check PDF quality")
+            return
+
+        logger.info(f"[{act_meta['act']}] Found {len(matches)} section boundaries")
+
+        for i, match in enumerate(matches):
+            section_number = match.group(1).strip()
+            section_title = match.group(2).strip().rstrip(".")
+
+            # Body text = everything until next section start
+            body_start = match.end()
+            body_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            body_text = text[body_start:body_end].strip()
+
+            # Skip very short sections (likely parse artifacts)
+            if len(body_text) < 30:
+                logger.debug(f"[{act_meta['act']}] Skipping short section {section_number}")
+                continue
+
             yield {
-                "judgment_id": doc_id,
-                "court": "GST",
-                "bench": section["act"],
-                "sections": [f"section_{section['section']}"],
-                "source_url": f"https://cbic-gst.gov.in/gst-act-rules.html",
-                "source_site": "cbic_gst",
-                "content_type": "statute",
-                "title": section["title"],
-                "content": section["content"],
+                "section_number": section_number,
+                "section_title": section_title,
+                "body_text": body_text,
             }
 
-    def get_circulars(self) -> Iterator[dict]:
-        for circular in GST_CIRCULARS:
-            doc_id = self.generate_id("CIRCULAR", circular["number"])
-            yield {
-                "judgment_id": doc_id,
-                "court": "GST",
-                "bench": "CBIC",
-                "sections": [],
-                "source_url": f"https://cbic-gst.gov.in/circulars.html",
-                "source_site": "cbic_gst",
-                "content_type": "circular",
-                "title": circular["subject"],
-                "content": circular["content"],
-                "circular_number": circular["number"],
-                "date": circular["date"],
-            }
+    # ─── Chunking ─────────────────────────────────────────────────────────────
 
-    def get_rate_schedules(self) -> Iterator[dict]:
-        for rate in GST_RATES:
-            doc_id = self.generate_id("RATE", rate["hsn"])
-            yield {
-                "judgment_id": doc_id,
-                "court": "GST",
-                "bench": "RATE_SCHEDULE",
-                "sections": [],
-                "source_url": "https://cbic-gst.gov.in/gst-goods-services-rates.html",
-                "source_site": "cbic_gst",
-                "content_type": "rate_schedule",
-                "title": rate["description"],
-                "content": f"HSN {rate['hsn']}: {rate['description']}. GST Rate: {rate['rate']} percent. {rate['notes']}",
-                "hsn": rate["hsn"],
-                "rate": rate["rate"],
-            }
+    def _chunk_section(
+        self,
+        section: dict,
+        act_meta: dict,
+    ) -> list[dict]:
+        """
+        Split long sections at sub-section boundaries (1), (2), (a) etc.
+        Short sections become a single chunk.
+        """
+        section_number = section["section_number"]
+        section_title = section["section_title"]
+        body_text = section["body_text"]
+        act = act_meta["act"]
+        source_url = act_meta["pdf_url"]
+
+        # Split on sub-section markers
+        parts = re.split(r"(?=\(\d+\)|\([a-z]\)\s)", body_text.strip())
+        parts = [p.strip() for p in parts if p.strip()]
+        if not parts:
+            parts = [body_text]
+
+        # Group parts into ≤ MAX_CHUNK_CHARS chunks
+        chunks = []
+        current = ""
+        chunk_index = 0
+
+        for part in parts:
+            if len(current) + len(part) > MAX_CHUNK_CHARS and current:
+                chunks.append(self._build_doc(
+                    act, section_number, section_title,
+                    current.strip(), chunk_index, source_url
+                ))
+                chunk_index += 1
+                current = part
+            else:
+                current += " " + part
+
+        if current.strip():
+            chunks.append(self._build_doc(
+                act, section_number, section_title,
+                current.strip(), chunk_index, source_url
+            ))
+
+        # Patch total_chunks now we know the count
+        for c in chunks:
+            c["total_chunks"] = len(chunks)
+
+        return chunks
+
+    def _build_doc(
+        self,
+        act: str,
+        section_number: str,
+        section_title: str,
+        body_text: str,
+        chunk_index: int,
+        source_url: str,
+    ) -> dict:
+        """
+        Build a single document dict.
+        Schema matches existing gst_scraper.py + Qdrant indexer expectations.
+        """
+        doc_id = self.generate_id(act, section_number, chunk_index)
+        section_refs = self._extract_section_refs(body_text)
+        own_tag = f"section_{section_number.lower()}"
+        if own_tag not in section_refs:
+            section_refs.insert(0, own_tag)
+
+        full_content = (
+            f"Section {section_number} {act} Act 2017 — {section_title}\n\n{body_text}"
+        )
+
+        return {
+            # Core identity — matches Qdrant schema
+            "judgment_id": doc_id,
+            "court": "GST",
+            "bench": act,
+            "sections": section_refs,
+            "source_url": source_url,
+            "source_site": "cbic_gst",
+            "content_type": "statute",
+            # Content
+            "title": f"Section {section_number} — {section_title}",
+            "content": full_content,
+            # GST-specific metadata
+            "act": act,
+            "section_number": section_number,
+            "section_title": section_title,
+            "chunk_index": chunk_index,
+            "total_chunks": None,   # patched after all chunks known
+            "scraped_date": datetime.utcnow().date().isoformat(),
+        }
+
+    # ─── Review Queue Output ──────────────────────────────────────────────────
+
+    def _write_review_queue(self, chunks: list[dict], act: str) -> Path:
+        date_str = datetime.utcnow().strftime("%Y%m%d")
+        out_file = self.review_queue_dir / f"gst_act_{act.lower()}_{date_str}.json"
+
+        payload = {
+            "source": f"GSTScraper — {act} Act 2017 (CBIC PDF)",
+            "scraped_at": datetime.utcnow().isoformat(),
+            "total_chunks": len(chunks),
+            "status": "pending_review",
+            "chunks": chunks,
+        }
+
+        out_file.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        logger.info(f"Review queue → {out_file} ({len(chunks)} chunks)")
+        return out_file
+
+    # ─── Per-Act Pipeline ─────────────────────────────────────────────────────
+
+    def scrape_act(self, act_meta: dict) -> list[dict]:
+        act = act_meta["act"]
+
+        # 1. Download PDF
+        pdf_path = self._download_pdf(act_meta)
+        if not pdf_path:
+            return []
+
+        # 2. Extract text
+        raw_text = self._extract_text_from_pdf(pdf_path)
+
+        # 3. Clean
+        clean_text = self._clean_text(raw_text)
+
+        # 4. Parse sections
+        all_chunks = []
+        section_count = 0
+        for section in self._parse_sections(clean_text, act_meta):
+            chunks = self._chunk_section(section, act_meta)
+            all_chunks.extend(chunks)
+            section_count += 1
+
+        logger.info(f"[{act}] {section_count} sections → {len(all_chunks)} chunks")
+        return all_chunks
+
+    # ─── Compatibility: get_all() for existing pipeline callers ──────────────
 
     def get_all(self) -> Iterator[dict]:
-        logger.info("Loading GST sections...")
-        for doc in self.get_sections():
-            yield doc
-        logger.info("Loading GST circulars...")
-        for doc in self.get_circulars():
-            yield doc
-        logger.info("Loading GST rate schedules...")
-        for doc in self.get_rate_schedules():
-            yield doc
+        """
+        Drop-in replacement for the old hardcoded get_all().
+        Scrapes both acts and yields chunks one by one.
+        Also writes review queue files as a side effect.
+        """
+        for act_meta in ACT_SOURCES:
+            chunks = self.scrape_act(act_meta)
+            if chunks:
+                self._write_review_queue(chunks, act_meta["act"])
+                yield from chunks
+
+    # ─── Main Entry Point ─────────────────────────────────────────────────────
+
+    def run(self, acts: Optional[list[str]] = None) -> dict[str, Path]:
+        sources = ACT_SOURCES
+        if acts:
+            sources = [s for s in ACT_SOURCES if s["act"] in acts]
+
+        results = {}
+        for act_meta in sources:
+            chunks = self.scrape_act(act_meta)
+            if chunks:
+                out_path = self._write_review_queue(chunks, act_meta["act"])
+                results[act_meta["act"]] = out_path
+            else:
+                logger.warning(f"[{act_meta['act']}] No chunks — check PDF and logs")
+
+        return results
+
+
+# ─── CLI ──────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    acts_filter = sys.argv[1:] if len(sys.argv) > 1 else None
+    scraper = GSTScraper()
+    output_files = scraper.run(acts=acts_filter)
+
+    print("\n── Review Queue Files ──")
+    for act, path in output_files.items():
+        print(f"  {act}: {path}")
+    print("\nReview chunks, then index to Qdrant.")

@@ -124,7 +124,7 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
 .calc-table tr.calc-total td{font-weight:700;color:var(--ink);border-top:2px solid var(--rule-mid);border-bottom:2px solid var(--rule-mid);background:var(--paper-3)!important}
 .calc-amt{text-align:right}
 .code-block{background:var(--paper-3);border:1px solid var(--rule);border-radius:var(--r);padding:10px 14px;margin:8px 0;overflow-x:auto}
-.code-block pre{font-family:'Geist Mono',monospace;font-size:.78rem;margin:0;white-space:pre;color:var(--ink)}ar(--ink)}
+.code-block pre{font-family:'Geist Mono',monospace;font-size:.78rem;margin:0;white-space:pre;color:var(--ink)}
 .typing{display:flex;gap:4px;padding:11px 15px;background:var(--paper);border:1px solid var(--rule);border-radius:8px;border-top-left-radius:2px;box-shadow:var(--shadow-sm);align-items:center}
 .dot{width:5px;height:5px;background:var(--ink-3);border-radius:50%;animation:dots 1.2s infinite}
 .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
@@ -218,6 +218,25 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
 .act-btn svg{width:11px;height:11px;flex-shrink:0}
 .toast{position:fixed;bottom:20px;right:20px;background:var(--paper);border:1px solid var(--rule);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--text);z-index:2000;box-shadow:var(--shadow-lg);animation:tIn .2s ease;max-width:280px;border-left:3px solid var(--ink);font-family:'Geist',sans-serif}
 @keyframes tIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── DASHBOARD-SPECIFIC ───────────────────────────────────────────────────── */
+.risk-bar-wrap{display:flex;align-items:center;gap:6px;min-width:100px}
+.risk-bar-track{flex:1;height:4px;background:var(--paper-3);border-radius:2px;overflow:hidden}
+.risk-bar-fill{height:100%;border-radius:2px;transition:width .4s ease}
+.risk-chip{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;font-family:'Geist Mono',monospace}
+.risk-chip.high{background:var(--accent-red-bg);color:var(--accent-red);border:1px solid #FECACA}
+.risk-chip.med{background:var(--accent-amber-bg);color:var(--accent-amber);border:1px solid #FDE68A}
+.risk-chip.low{background:var(--accent-green-bg);color:var(--accent-green);border:1px solid #BBF7D0}
+.bench-row{display:flex;align-items:center;gap:8px;padding:6px 14px}
+.bench-row:hover{background:var(--paper-2)}
+.bench-name{font-size:12px;color:var(--text-2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bench-bar-wrap{width:80px;height:4px;background:var(--paper-3);border-radius:2px;overflow:hidden}
+.bench-bar-fill{height:100%;background:var(--ink);border-radius:2px}
+.bench-count{font-size:10px;color:var(--text-3);font-family:'Geist Mono',monospace;width:26px;text-align:right}
+.year-bar{flex:1;background:var(--ink);border-radius:2px 2px 0 0;position:relative;transition:height .4s ease;min-width:8px;cursor:default}
+.year-bar:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);font-size:9px;white-space:nowrap;padding:2px 6px;border-radius:3px;pointer-events:none;font-family:'Geist Mono',monospace}
+.year-label{flex:1;text-align:center;font-size:8px;color:var(--text-3);font-family:'Geist Mono',monospace;min-width:8px}
+.outcome-stacked{width:100%;height:6px;border-radius:3px;overflow:hidden;display:flex;margin-bottom:2px}
 </style>
 </head>
 <body>
@@ -246,10 +265,9 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
         <button class="sb-btn active" onclick="sw('chat')" id="sb-chat"><span class="ic">💬</span>Tax Query</button>
         <button class="sb-btn" onclick="sw('notice')" id="sb-notice"><span class="ic">📋</span>Notice Analyzer</button>
         <button class="sb-btn" onclick="sw('crossref')" id="sb-crossref"><span class="ic">🔀</span>Section Cross-Ref</button>
+        <button class="sb-btn" onclick="sw('litdash')" id="sb-litdash"><span class="ic">📊</span>Litigation Risk<span class="tag">LIVE</span></button>
         <button class="sb-btn" onclick="sw('kb')" id="sb-kb"><span class="ic">📚</span>Knowledge Base</button>
       </div>
-
-
     </div>
     <div class="sidebar-footer"><p>ITA 2025 · Effective 1 Apr 2026<br>Powered by Claude Sonnet 4</p></div>
   </div>
@@ -262,9 +280,9 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
         <button class="tab active" onclick="sw('chat')" id="tab-chat">Chat</button>
         <button class="tab" onclick="sw('notice')" id="tab-notice">Notice Draft</button>
         <button class="tab" onclick="sw('crossref')" id="tab-crossref">Cross-Ref</button>
+        <button class="tab" onclick="sw('litdash')" id="tab-litdash">Litigation Risk</button>
         <button class="tab" onclick="sw('kb')" id="tab-kb">Knowledge Base</button>
       </div>
-
     </div>
 
     <!-- CHAT -->
@@ -274,7 +292,6 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
           <div class="welcome-seal">⚖️</div>
           <h1>TaxMind is Ready</h1>
           <p>Your firm's AI assistant for the new Income Tax Act 2025. Every answer cites both the new and old Act sections.</p>
-
         </div>
       </div>
       <div class="input-bar">
@@ -340,6 +357,193 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
       </div>
     </div>
 
+    <!-- LITIGATION RISK DASHBOARD -->
+    <div class="panel" id="panel-litdash">
+      <div class="cpanel">
+
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+          <div class="ptitle">📊 Litigation Risk Dashboard</div>
+          <button class="gbtn" id="dashRefreshBtn" onclick="refreshActiveDash()" style="font-size:11px;padding:5px 12px">↻ Refresh</button>
+        </div>
+
+        <!-- IT / GST toggle -->
+        <div style="display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--rule);padding-bottom:12px">
+          <button id="tabBtnIT" onclick="switchDashTab('it')"
+            style="padding:5px 18px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--ink);background:var(--ink);color:var(--paper);font-family:'Geist',sans-serif;transition:all .15s">
+            ⚖️ Income Tax
+          </button>
+          <button id="tabBtnGST" onclick="switchDashTab('gst')"
+            style="padding:5px 18px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--rule);background:var(--paper);color:var(--text-2);font-family:'Geist',sans-serif;transition:all .15s">
+            🧾 GST
+          </button>
+        </div>
+
+        <!-- ══ INCOME TAX PANEL ══ -->
+        <div id="dashIT">
+          <div class="psub" style="margin-bottom:14px">Live intelligence from <strong id="dashCaseCount">—</strong> indexed ITAT judgments. Source: itatonline.org · Qdrant Cloud.</div>
+
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px">
+            <div class="scard"><div class="sn" id="kpiTotal">—</div><div class="sl">Total Cases</div></div>
+            <div class="scard"><div class="sn" id="kpiAssessee" style="color:var(--accent-green)">—</div><div class="sl">Assessee Favored</div></div>
+            <div class="scard"><div class="sn" id="kpiRevenue" style="color:var(--accent-red)">—</div><div class="sl">Revenue Favored</div></div>
+            <div class="scard"><div class="sn" id="kpiRemanded" style="color:var(--accent-amber)">—</div><div class="sl">Remanded</div></div>
+            <div class="scard"><div class="sn" id="kpiSections">—</div><div class="sl">Sections Tagged</div></div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 210px;gap:12px;margin-bottom:12px;align-items:start">
+            <div style="background:var(--paper);border:1px solid var(--rule);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow-sm)">
+              <div style="padding:9px 14px 7px;border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between">
+                <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3)">Section-wise Dispute Frequency</span>
+                <span style="font-size:9px;color:var(--text-3);font-family:'Geist Mono',monospace">top 20 · tagged cases only</span>
+              </div>
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:11.5px">
+                  <thead>
+                    <tr style="background:var(--paper-2)">
+                      <th style="padding:6px 12px;text-align:left;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);border-bottom:1px solid var(--rule)">Section</th>
+                      <th style="padding:6px 8px;text-align:right;font-weight:600;font-size:9px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--rule)">Cases</th>
+                      <th style="padding:6px 12px;text-align:left;font-weight:600;font-size:9px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--rule)">Outcome split</th>
+                      <th style="padding:6px 6px;text-align:center;font-weight:600;font-size:9px;text-transform:uppercase;color:var(--accent-green);border-bottom:1px solid var(--rule)">Assessee</th>
+                      <th style="padding:6px 6px;text-align:center;font-weight:600;font-size:9px;text-transform:uppercase;color:var(--accent-red);border-bottom:1px solid var(--rule)">Revenue</th>
+                      <th style="padding:6px 6px;text-align:center;font-weight:600;font-size:9px;text-transform:uppercase;color:var(--accent-amber);border-bottom:1px solid var(--rule)">Remanded</th>
+                      <th style="padding:6px 8px;text-align:right;font-weight:600;font-size:9px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--rule)">Risk</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sectionTableBody">
+                    <tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text-3);font-size:12px">Loading…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="background:var(--paper);border:1px solid var(--rule);border-radius:var(--r);padding:12px;box-shadow:var(--shadow-sm)">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:8px">Outcome Split</div>
+                <svg id="donutOutcome" viewBox="0 0 120 120" style="width:100%;display:block">
+                  <circle cx="60" cy="60" r="44" fill="none" stroke="var(--paper-3)" stroke-width="16"/>
+                  <g id="donutOutcomeArcs"></g>
+                  <text x="60" y="57" text-anchor="middle" font-family="'Instrument Serif',serif" font-size="16" fill="var(--ink)" id="donutOutcomePct">—</text>
+                  <text x="60" y="69" text-anchor="middle" font-family="'Geist',sans-serif" font-size="6.5" fill="var(--text-3)" letter-spacing="0.3">ASSESSEE WIN</text>
+                </svg>
+                <div id="donutOutcomeLegend" style="display:flex;flex-direction:column;gap:5px;margin-top:8px"></div>
+              </div>
+              <div style="background:var(--paper);border:1px solid var(--rule);border-radius:var(--r);padding:12px;box-shadow:var(--shadow-sm)">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:8px">Risk Level</div>
+                <svg id="donutRisk" viewBox="0 0 120 120" style="width:100%;display:block">
+                  <circle cx="60" cy="60" r="44" fill="none" stroke="var(--paper-3)" stroke-width="16"/>
+                  <g id="donutRiskArcs"></g>
+                  <text x="60" y="57" text-anchor="middle" font-family="'Instrument Serif',serif" font-size="16" fill="var(--ink)" id="donutRiskPct">—</text>
+                  <text x="60" y="69" text-anchor="middle" font-family="'Geist',sans-serif" font-size="6.5" fill="var(--text-3)" letter-spacing="0.3">HIGH RISK</text>
+                </svg>
+                <div id="donutRiskLegend" style="display:flex;flex-direction:column;gap:5px;margin-top:8px"></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="background:var(--paper);border:1px solid var(--rule);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow-sm);margin-bottom:12px">
+            <div style="padding:9px 14px 7px;border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3)">Top Transaction Types Litigated</span>
+              <span style="font-size:9px;color:var(--text-3);font-family:'Geist Mono',monospace">top 15 · all cases</span>
+            </div>
+            <div id="txTypeList" style="padding:6px 0"></div>
+          </div>
+
+          <div style="font-size:10px;color:var(--text-3);font-family:'Geist Mono',monospace;padding:2px 0 20px">
+            ⓘ Sections tagged in ~50% of records — section table reflects tagged cases only. Loaded: <span id="dashLoadedAt">—</span>
+          </div>
+        </div>
+
+        <!-- ══ GST PANEL ══ -->
+        <div id="dashGST" style="display:none">
+          <div class="psub" style="margin-bottom:14px">GST Act knowledge base — <strong id="gstEntryCount">—</strong> entries indexed. Source: CBIC · CGST &amp; IGST Act · Qdrant Cloud.</div>
+
+          <!-- GST KPI row -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+            <div class="scard"><div class="sn" id="gstKpiTotal">—</div><div class="sl">Total Entries</div></div>
+            <div class="scard"><div class="sn" id="gstKpiStatutes" style="color:var(--accent-green)">—</div><div class="sl">Act Sections</div></div>
+            <div class="scard"><div class="sn" id="gstKpiRates" style="color:#7C3AED">—</div><div class="sl">Rate Schedules</div></div>
+            <div class="scard"><div class="sn" id="gstKpiSections">—</div><div class="sl">Sections Tagged</div></div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 210px;gap:12px;margin-bottom:12px;align-items:start">
+
+            <!-- GST Section table -->
+            <div style="background:var(--paper);border:1px solid var(--rule);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow-sm)">
+              <div style="padding:9px 14px 7px;border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between">
+                <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3)">Top Sections Indexed</span>
+                <span style="font-size:9px;color:var(--text-3);font-family:'Geist Mono',monospace">top 20 · CGST + IGST</span>
+              </div>
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:11.5px">
+                  <thead>
+                    <tr style="background:var(--paper-2)">
+                      <th style="padding:6px 12px;text-align:left;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);border-bottom:1px solid var(--rule)">Section</th>
+                      <th style="padding:6px 8px;text-align:right;font-weight:600;font-size:9px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--rule)">Chunks</th>
+                      <th style="padding:6px 12px;text-align:left;font-weight:600;font-size:9px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--rule)">Coverage</th>
+                    </tr>
+                  </thead>
+                  <tbody id="gstSectionTableBody">
+                    <tr><td colspan="3" style="padding:32px;text-align:center;color:var(--text-3);font-size:12px">Loading…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Right: two donuts -->
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="background:var(--paper);border:1px solid var(--rule);border-radius:var(--r);padding:12px;box-shadow:var(--shadow-sm)">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:8px">Content Type</div>
+                <svg id="donutGSTContent" viewBox="0 0 120 120" style="width:100%;display:block">
+                  <circle cx="60" cy="60" r="44" fill="none" stroke="var(--paper-3)" stroke-width="16"/>
+                  <g id="donutGSTContentArcs"></g>
+                  <text x="60" y="57" text-anchor="middle" font-family="'Instrument Serif',serif" font-size="16" fill="var(--ink)" id="donutGSTContentPct">—</text>
+                  <text x="60" y="69" text-anchor="middle" font-family="'Geist',sans-serif" font-size="6" fill="var(--text-3)" letter-spacing="0.2">STATUTES</text>
+                </svg>
+                <div id="donutGSTContentLegend" style="display:flex;flex-direction:column;gap:5px;margin-top:8px"></div>
+              </div>
+              <div style="background:var(--paper);border:1px solid var(--rule);border-radius:var(--r);padding:12px;box-shadow:var(--shadow-sm)">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:8px">Act Split</div>
+                <svg id="donutGSTAct" viewBox="0 0 120 120" style="width:100%;display:block">
+                  <circle cx="60" cy="60" r="44" fill="none" stroke="var(--paper-3)" stroke-width="16"/>
+                  <g id="donutGSTActArcs"></g>
+                  <text x="60" y="57" text-anchor="middle" font-family="'Instrument Serif',serif" font-size="16" fill="var(--ink)" id="donutGSTActPct">—</text>
+                  <text x="60" y="69" text-anchor="middle" font-family="'Geist',sans-serif" font-size="6" fill="var(--text-3)" letter-spacing="0.2">CGST</text>
+                </svg>
+                <div id="donutGSTActLegend" style="display:flex;flex-direction:column;gap:5px;margin-top:8px"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rate schedule table -->
+          <div style="background:var(--paper);border:1px solid var(--rule);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow-sm);margin-bottom:12px">
+            <div style="padding:9px 14px 7px;border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3)">GST Rate Schedule (Sample)</span>
+              <span style="font-size:9px;color:var(--text-3);font-family:'Geist Mono',monospace">top 20 · HSN-wise</span>
+            </div>
+            <div style="overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:11.5px">
+                <thead>
+                  <tr style="background:var(--paper-2)">
+                    <th style="padding:6px 12px;text-align:left;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);border-bottom:1px solid var(--rule)">HSN</th>
+                    <th style="padding:6px 12px;text-align:left;font-weight:600;font-size:9px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--rule)">Description</th>
+                    <th style="padding:6px 12px;text-align:right;font-weight:600;font-size:9px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--rule)">GST Rate %</th>
+                  </tr>
+                </thead>
+                <tbody id="gstRateTableBody">
+                  <tr><td colspan="3" style="padding:32px;text-align:center;color:var(--text-3);font-size:12px">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="font-size:10px;color:var(--text-3);font-family:'Geist Mono',monospace;padding:2px 0 20px">
+            ⓘ GST Act sections from CGST &amp; IGST Acts (CBIC). Rate schedules from official HSN-GST mapping. Loaded: <span id="gstLoadedAt">—</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
     <!-- KB -->
     <div class="panel" id="panel-kb">
       <div class="cpanel">
@@ -351,8 +555,6 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
           <div class="scard"><div class="sn" id="stLocal">0</div><div class="sl">Local Only</div></div>
           <div class="scard"><div class="sn" id="stSize">—</div><div class="sl">Storage</div></div>
         </div>
-
-        <!-- Sync bar -->
         <div class="sync-bar">
           <div class="sb-info">
             <div class="sb-title">🔄 Shared Knowledge Base</div>
@@ -360,8 +562,6 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
           </div>
           <button class="sync-btn" id="syncBtn" onclick="syncKB()">Sync Now</button>
         </div>
-
-        <!-- Upload form -->
         <div class="upload-form">
           <div style="font-size:13.5px;font-weight:600;color:var(--ink);margin-bottom:13px">📤 Add Document (shared with team)</div>
           <div class="fgrid">
@@ -398,7 +598,6 @@ html,body{height:100%;overflow:hidden;font-family:'Geist',system-ui,sans-serif;b
           </div>
           <button class="pbtn" style="margin-top:12px;width:100%" id="idxBtn" onclick="indexDoc()">📤 Index & Share with Team</button>
         </div>
-
         <div style="font-size:10.5px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:9px" id="dlLabel">Documents (0)</div>
         <div class="doc-list" id="docList"><div class="empty-st"><div class="esi">📭</div>No documents yet. Upload your ITA 2025 PDF above.</div></div>
       </div>
@@ -411,8 +610,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/p
 
 // ── STATE ──────────────────────────────────────────────────
 let msgs=[];
-let sharedKB=[];   // from server
-let localKB=[];    // local uploads not yet indexed
+let sharedKB=[];
+let localKB=[];
 let selFile=null;
 
 try{localKB=JSON.parse(localStorage.getItem('tm_local_kb')||'[]');}catch(e){localKB=[];}
@@ -425,8 +624,7 @@ const SECS=['80C','80D','10(38)','148','148A','147','263','68','69A','54','54F',
 // ── INIT ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
   renderQQ(); renderPills();
-  // Show app immediately, load KB in background
-  updateKBUI(); // render UI with empty KB first
+  updateKBUI();
   setTimeout(async()=>{
     await syncKB(true);
     loadChunksBackground();
@@ -440,7 +638,6 @@ async function syncKB(silent=false){
     document.getElementById('syncBtn').textContent='Syncing…';
   }
   try{
-    // Load metadata only — instant
     const res=await fetch('/api/kb');
     if(!res.ok) throw new Error('Server error '+res.status);
     const data=await res.json();
@@ -448,8 +645,6 @@ async function syncKB(silent=false){
       sharedKB=data.documents.map(d=>({...d,chunks:[]}));
       _index=null; _indexedKBLen=0; chunksLoaded=false;
       updateKBUI();
-      const notice=document.getElementById('kbNotice');
-
       if(!silent) showToast(`Synced — ${sharedKB.length} docs ready`,'success');
       if(!silent) loadChunksBackground();
     }
@@ -466,50 +661,30 @@ async function syncKB(silent=false){
 // ── CHUNK CACHE ────────────────────────────────────────────
 let chunksLoaded=false;
 let chunksLoading=false;
-const CACHE_KEY='tm_chunks_cache';
-const CACHE_VER_KEY='tm_chunks_ver';
-
-async function getCacheVersion(){
-  // Version = sorted doc IDs + chunkCounts joined
-  return sharedKB.map(d=>d.id+':'+d.chunkCount).sort().join('|');
-}
 
 async function loadChunksBackground(){
   if(chunksLoaded||chunksLoading) return;
   chunksLoading=true;
   try{
-
     const res=await fetch('/api/kb?chunks=1');
     if(!res.ok) throw new Error('chunks load failed '+res.status);
     const data=await res.json();
     if(data.documents && data.documents.length){
-      // Merge chunks into existing sharedKB entries by id
       data.documents.forEach(serverDoc => {
         const idx = sharedKB.findIndex(d => d.id === serverDoc.id);
-        if(idx >= 0){
-          sharedKB[idx] = serverDoc; // replace with full doc including chunks
-        } else {
-          sharedKB.push(serverDoc);
-        }
+        if(idx >= 0){ sharedKB[idx] = serverDoc; }
+        else { sharedKB.push(serverDoc); }
       });
       _index=null; _indexedKBLen=0;
       chunksLoaded=true;
-      const totalChunks = sharedKB.reduce((s,d)=>s+(d.chunks||[]).length,0);
-
-      const notice=document.getElementById('kbNotice');
-      if(notice) notice.textContent=`✅ ${sharedKB.length} documents · ${totalChunks.toLocaleString()} chunks indexed and ready`;
     }
-  }catch(e){
-    console.warn('chunk load error',e);
-
-  }
+  }catch(e){ console.warn('chunk load error',e); }
   chunksLoading=false;
 }
 
 async function ensureChunks(){
   if(chunksLoaded) return;
   if(!chunksLoading) loadChunksBackground();
-  // Wait for chunks to load (max 30s)
   let tries=0;
   while(!chunksLoaded && tries<60){
     await new Promise(r=>setTimeout(r,500));
@@ -523,27 +698,12 @@ async function pushToServer(docs){
     for(const doc of docs){
       const allChunks = doc.chunks || [];
       const totalPages = Math.ceil(allChunks.length / PAGE);
-      
       for(let p = 0; p < totalPages; p++){
         const pageChunks = allChunks.slice(p * PAGE, (p+1) * PAGE);
-        const isFirst = p === 0;
-        const payload = JSON.stringify({documents:[{
-          ...doc,
-          chunks: pageChunks,
-          chunkCount: allChunks.length, // always send total count
-          chunkPage: p,
-          totalPages
-        }]});
-        
-        document.getElementById('progLbl').textContent=
-          `Uploading page ${p+1}/${totalPages} (${allChunks.length} total chunks)…`;
+        const payload = JSON.stringify({documents:[{...doc,chunks: pageChunks,chunkCount: allChunks.length,chunkPage: p,totalPages}]});
+        document.getElementById('progLbl').textContent=`Uploading page ${p+1}/${totalPages} (${allChunks.length} total chunks)…`;
         document.getElementById('pFill').style.width = (92 + (8*(p+1)/totalPages)) + '%';
-        
-        const res = await fetch('/api/kb', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: payload
-        });
+        const res = await fetch('/api/kb', {method: 'POST',headers: {'Content-Type': 'application/json'},body: payload});
         const responseText = await res.text();
         let data;
         try { data = JSON.parse(responseText); }
@@ -555,35 +715,26 @@ async function pushToServer(docs){
     return true;
   }catch(e){
     showToast('Upload failed: '+e.message,'error');
-    console.error('pushToServer error:', e);
     return false;
   }
 }
 
 async function deleteFromServer(id){
-  try{
-    await fetch('/api/kb?id='+id,{method:'DELETE'});
-  }catch(e){ console.warn('Delete sync failed',e); }
+  try{ await fetch('/api/kb?id='+id,{method:'DELETE'}); }
+  catch(e){ console.warn('Delete sync failed',e); }
 }
 
 // ── KB UI ──────────────────────────────────────────────────
 function updateKBUI(){
   const all=KB();
-  const total=all.length;
   const totalChunks=all.reduce((s,d)=>s+(d.chunkCount||0),0);
   const totalSize=all.reduce((s,d)=>s+(d.size||0),0);
-
   document.getElementById('stDocs').textContent=sharedKB.length;
   document.getElementById('stChunks').textContent=totalChunks.toLocaleString()||'—';
   document.getElementById('stLocal').textContent=localKB.length;
   document.getElementById('stSize').textContent=totalSize>1048576?(totalSize/1048576).toFixed(1)+' MB':Math.round(totalSize/1024)+' KB';
-  document.getElementById('dlLabel').textContent=`Documents (${total})`;
-
-  // Enable send button if KB has docs
-  if(total>0){
-    document.getElementById('sendBtn').disabled=!document.getElementById('chatInput').value.trim();
-  }
-
+  document.getElementById('dlLabel').textContent=`Documents (${all.length})`;
+  if(all.length>0){ document.getElementById('sendBtn').disabled=!document.getElementById('chatInput').value.trim(); }
   renderDocList();
   document.getElementById('lastSync').textContent='Last synced: '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
 }
@@ -686,7 +837,6 @@ async function indexDoc(){
       document.getElementById('progLbl').textContent=`✅ Shared with team — ${chunks.length} chunks`;
       showToast(`✅ "${title}" shared with team!`,'success');
     }else{
-      // Fallback: local only
       localKB.push(doc); saveLocal();
       document.getElementById('progLbl').textContent=`✅ Saved locally — ${chunks.length} chunks`;
       showToast(`Saved locally (server unavailable)`,'info');
@@ -701,21 +851,14 @@ async function indexDoc(){
 }
 
 // ── BM25 SEARCH ───────────────────────────────────────────
-// Based on BM25 algorithm - no embeddings, no cosine similarity
-// Field-weighted: section numbers > headings > body text
-
 const BM25_K1 = 1.5;
 const BM25_B  = 0.75;
 
 function tokenize(t){
-  return t.toLowerCase()
-    .replace(/[^a-z0-9\s]/g,' ')
-    .split(/\s+/)
-    .filter(w => w.length > 1);
+  return t.toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(w => w.length > 1);
 }
 
 function extractSectionNums(t){
-  // Extract patterns like 192, 194A, 80C, 148A(b) etc.
   const nums = [];
   const m1 = t.match(/(?:section|sec\.?|s\.)\s*([0-9]+[a-z]*)/gi) || [];
   m1.forEach(x => { const n = x.match(/([0-9]+[a-z]*)/i); if(n) nums.push(n[1].toLowerCase()); });
@@ -724,10 +867,7 @@ function extractSectionNums(t){
   return [...new Set(nums)];
 }
 
-// ── ITA 1961 → ITA 2025 SECTION MAPPING ──────────────────────
-// Maps old Act section numbers to new Act equivalents for query expansion
 const SEC_MAP_1961_TO_2025 = {
-  // TDS Chapter XVII-B → Chapter XIX-A
   '192':'393','192a':'394','193':'395','194':'396','194a':'397',
   '194b':'398','194ba':'399','194bb':'400','194c':'401','194d':'402',
   '194da':'403','194e':'404','194ee':'405','194f':'406','194g':'407',
@@ -741,81 +881,25 @@ const SEC_MAP_1961_TO_2025 = {
   '200':'441','200a':'442','201':'443','202':'444','203':'445',
   '203a':'446','203aa':'447','204':'448','205':'449','206':'450',
   '206a':'451','206aa':'452','206ab':'453','206b':'454','206c':'455',
-  '206ca':'456','206cb':'457','206cc':'458','206cca':'459',
-  // Deductions Chapter VI-A → Chapter VIII
   '80a':'122','80ac':'123a','80b':'123b','80c':'123','80ccc':'124',
   '80ccd':'125','80ccf':'126','80ccg':'127','80d':'128','80dd':'129',
   '80ddb':'130','80e':'131','80ee':'132','80eea':'133','80eeb':'134',
   '80g':'135','80gga':'136','80ggb':'137','80ggc':'138','80gg':'139',
   '80ia':'141','80iab':'142','80ib':'143','80ic':'144','80id':'145',
   '80ie':'146','80jja':'147','80jjaa':'148','80la':'149','80p':'150',
-  '80pa':'151','80qqa':'152','80qqb':'153','80rrb':'154','80tta':'155',
-  '80ttb':'156','80u':'157',
-  // Capital Gains Chapter IV → Chapter VI
+  '80pa':'151','80tta':'155','80ttb':'156','80u':'157',
   '45':'67','46':'68','47':'69','47a':'70','48':'71','49':'72',
   '50':'73','50a':'74','50b':'75','50c':'76','50ca':'77','50d':'78',
-  '51':'79','54':'80','54b':'81','54d':'82','54e':'83','54ea':'84',
-  '54eb':'85','54ec':'86','54ee':'87','54f':'88','54g':'89',
-  '54ga':'90','54gb':'91','55':'92','55a':'93',
-  // Business income Chapter IV → Chapter IV (renumbered)
-  '28':'18','29':'19','30':'20','31':'21','32':'22','32a':'23',
-  '33':'24','33a':'25','33ab':'26','33aba':'27','33ac':'28',
-  '35':'30','35a':'31','35ab':'32','35abb':'33','35ac':'34',
-  '35ad':'35','35cca':'36','35ccb':'37','35ccc':'38','35ccd':'39',
-  '36':'40','37':'41','38':'42','40':'43','40a':'44','41':'45',
-  '42':'46','43':'47','43a':'48','43b':'49','43c':'50','43d':'51',
-  '44':'52','44a':'53','44aa':'54','44ab':'55','44ad':'56',
-  '44ada':'57','44ae':'58','44af':'59','44b':'60','44bba':'61',
-  '44bbb':'62','44c':'63','44d':'64','44da':'65',
-  // Assessment/Reassessment Chapter XIV
-  '139':'263','140':'264','140a':'265','141':'266','142':'267',
-  '142a':'268','143':'269','144':'270','144a':'271','144b':'272',
-  '144ba':'273','144c':'274','145':'275','145a':'276','145b':'277',
-  '147':'278','148':'279','148a':'280','149':'281','150':'282',
-  '151':'283','151a':'284','152':'285','153':'286','153a':'287',
-  '153b':'288','153c':'289','153d':'290',
-  // Penalties Chapter XXI
-  '270a':'379','271':'380','271a':'381','271aa':'382','271aaa':'383',
-  '271aab':'384','271b':'385','271ba':'386','271bb':'387',
-  '271c':'388','271d':'389','271da':'390','271db':'391',
-  '271e':'392','271f':'393a','271g':'394a','271h':'395a',
-  // Appeals
-  '246':'331','246a':'332','247':'333','248':'334','249':'335',
-  '250':'336','251':'337','252':'338','253':'339','254':'340',
-  '255':'341','256':'342','257':'343','260':'344','260a':'345',
-  '261':'346','262':'347','263':'348','264':'349','264a':'350',
-  '265':'351','266':'352',
-  // Salary income (Chapter IV → Chapter III)
-  '15':'15','16':'19','17':'17',
-  // Standard deduction, entertainment allowance, professional tax
-  // House property (Chapter IV → Chapter III)
-  '22':'18a','23':'23a','24':'24a','25':'25a','25a':'25b','26':'26a','27':'27a',
-  // Other key sections
-  '2':'2','4':'4','5':'5','6':'6','9':'9','10':'10',
-  '14':'14',
-  '22':'18a','23':'19a','24':'20a','25':'21a','26':'22a','27':'23a',
-  '56':'66','57':'67a','58':'68','59':'69',
-  '60':'70a','61':'71a','62':'72a','63':'73a','64':'74a',
-  '68':'96','69':'97','69a':'98','69b':'99','69c':'100','69d':'101',
-  '115a':'160','115b':'161','115ba':'162','115bab':'163',
-  '115bac':'164','115bad':'165','115bae':'166',
-  '131':'195','132':'196','132a':'197','132b':'198',
-  '133':'199','133a':'200','133b':'201','134':'202',
-  '135':'203','136':'204','137':'205',
-  '156':'225','157':'226','220':'310','221':'311',
-  '222':'312','226':'313','228':'314','229':'315',
-  '230':'316','231':'317','234a':'318','234b':'319','234c':'320',
-  '234d':'321','234e':'322','234f':'323',
-  '245a':'324','245b':'325','245c':'326','245d':'327',
-  '245e':'328','245f':'329','245g':'330',
+  '54':'80','54b':'81','54d':'82','54ec':'86','54f':'88',
+  '28':'18','36':'40','37':'41','40a':'44','43b':'49',
+  '44aa':'54','44ab':'55','44ad':'56','44ada':'57','44ae':'58',
+  '139':'263','142':'267','143':'269','144':'270','144b':'272',
+  '147':'278','148':'279','148a':'280','149':'281','153a':'287','153c':'289',
+  '270a':'379','271':'380','271aab':'384','271b':'385','271c':'388',
+  '68':'96','69':'97','56':'66','87a':'159','234a':'318','234b':'319','234c':'320','234f':'323',
 };
+const SEC_MAP_2025_TO_1961 = Object.fromEntries(Object.entries(SEC_MAP_1961_TO_2025).map(([k,v])=>[v,k]));
 
-// Reverse map: 2025 → 1961
-const SEC_MAP_2025_TO_1961 = Object.fromEntries(
-  Object.entries(SEC_MAP_1961_TO_2025).map(([k,v])=>[v,k])
-);
-
-// Expand query sections to include both old and new Act equivalents
 function expandSections(secs){
   const expanded = new Set(secs);
   secs.forEach(s => {
@@ -825,7 +909,6 @@ function expandSections(secs){
   return [...expanded];
 }
 
-// Build BM25 index from all chunks
 function buildIndex(docs){
   const index = { chunks:[], df:{}, avgLen:0 };
   let totalLen = 0;
@@ -861,7 +944,6 @@ function bm25score(chunk, queryTokens, qSecs, index){
   let score = 0;
   const N = index.N;
   const avgLen = index.avgLen;
-
   queryTokens.forEach(qt => {
     const df = index.df[qt] || 0;
     if(!df) return;
@@ -870,13 +952,10 @@ function bm25score(chunk, queryTokens, qSecs, index){
     const norm = tf * (BM25_K1 + 1) / (tf + BM25_K1 * (1 - BM25_B + BM25_B * chunk.len / avgLen));
     score += idf * norm;
   });
-
-  // Strong boost for section number matches
   if(qSecs.length){
     const matches = qSecs.filter(s => chunk.secs.includes(s));
-    score += matches.length * 8.0; // heavy boost - section match is highly relevant
+    score += matches.length * 8.0;
   }
-
   return score;
 }
 
@@ -886,48 +965,27 @@ function getCtx(q, k=8){
   const index = getIndex();
   const qTokens = tokenize(q);
   const qSecs = extractSectionNums(q);
-
   const qSecsExpanded = expandSections(qSecs);
-
-  const scored = index.chunks.map(chunk => ({
-    chunk,
-    score: bm25score(chunk, qTokens, qSecsExpanded, index)
-  }));
-
+  const scored = index.chunks.map(chunk => ({ chunk, score: bm25score(chunk, qTokens, qSecsExpanded, index) }));
   scored.sort((a,b) => b.score - a.score);
-
-  // Ensure at least ceil(k/2) results from EACH document (old + new Act)
   const seen = new Set();
   const results = [];
   const perDoc = Math.ceil(k/2);
-
-  // Group by doc
   const byDoc = {};
   scored.forEach(({chunk, score}) => {
     const id = chunk.doc.id;
     if(!byDoc[id]) byDoc[id] = [];
     byDoc[id].push({chunk, score});
   });
-
-  // Take top perDoc chunks from each doc
   Object.values(byDoc).forEach(docChunks => {
     let taken = 0;
     for(const {chunk, score} of docChunks){
       if(taken >= perDoc) break;
-      if(!seen.has(chunk.text)){
-        results.push({chunk, score});
-        seen.add(chunk.text);
-        taken++;
-      }
+      if(!seen.has(chunk.text)){ results.push({chunk, score}); seen.add(chunk.text); taken++; }
     }
   });
-
-  // Sort results by score and trim to k
   results.sort((a,b) => b.score - a.score);
-
-  return results.slice(0, k)
-    .map((r,i) => `[${i+1}] ${r.chunk.doc.title} (${r.chunk.doc.category})\n${r.chunk.text}`)
-    .join('\n\n---\n\n');
+  return results.slice(0, k).map((r,i) => `[${i+1}] ${r.chunk.doc.title} (${r.chunk.doc.category})\n${r.chunk.text}`).join('\n\n---\n\n');
 }
 
 // ── PROMPTS ────────────────────────────────────────────────
@@ -964,196 +1022,14 @@ Use this table for EVERY answer, even if unchanged (state "Retained as-is").
 
 ### 🔢 Step-by-Step Calculation / Working Example
 MANDATORY for any provision involving numbers, rates, limits, or computations.
-Use a realistic scenario with an Indian taxpayer:
-- Name the taxpayer (e.g., "Mr. Arjun Mehta, salaried employee in Mumbai")
-- Use realistic income figures (₹8-50 lakh range typically)
-- Show every step of the calculation with actual numbers
-- Show tax impact before and after the provision
-- If multiple scenarios apply (e.g., old vs new regime), show both side by side
 
 ### 💡 Practical Application & Planning Points
-2-4 bullet points a CA would actually tell a client:
-- Common mistakes / traps to avoid
-- Legitimate tax planning opportunities
-- Documentation requirements
-- Deadlines and compliance steps
 
 ### ⚠️ Common Disputes & Case Law
-For each relevant provision, cite at least 1-2 decided cases:
-Format: "The Hon'ble [Court] in [Taxpayer] v. [Authority] [(Year) ITR/ITAT] held that [ratio]. This means in practice: [practical implication]."
-Note any unresolved disputes or areas where ITA 2025 may face litigation.
 
 ### 🔗 Related Sections
-List 3-5 sections the professional should also check, with brief reason why.
 
 ### 📚 References
-- ITA 1961: s.[X], s.[Y]
-- ITA 2025: s.[A], s.[B]  
-- CBDT Circular/Notification: [Number, Date] if applicable
-- Case Laws: [Citations]
-
-════════════════════════════════════════
-CALCULATION STANDARDS
-════════════════════════════════════════
-CRITICAL — Always wrap ALL calculations in triple backtick fences. Never output calculation rows as plain text.
-Current Assessment Year is AY 2026-27 (Financial Year 2025-26). Always use this in calculation headings unless the user specifies a different year. NEVER write AY 2024-25 or AY 2025-26 in headings for current transactions.
-
-Use exactly this format:
-
-**Computation of [Tax/Deduction/Gain] — [Taxpayer Name], AY [20XX-XX]**
-\`\`\`
-Particulars                              Amount (₹)
-─────────────────────────────────────────────────
-Gross Income / Sale Consideration         XX,XX,XXX
-Less: [Deduction / Cost]                 (XX,XX,XXX)
-Less: Indexation Benefit (if applicable) (XX,XX,XXX)
-─────────────────────────────────────────────────
-Net Taxable Amount                        XX,XX,XXX
-Tax Rate                                      20% / 10%
-Tax Liability                             XX,XX,XXX
-Add: Surcharge @ [X]%                      X,XX,XXX
-Add: Health & Education Cess @ 4%            XX,XXX
-─────────────────────────────────────────────────
-Total Tax Payable                         XX,XX,XXX
-\`\`\`
-
-Tax slabs MUST be shown in a markdown table (| Slab | Rate |), NEVER as bullet list or black box items.
-
-For TDS calculations, always show:
-- Gross payment amount
-- Applicable TDS rate (old Act section → new Act section)
-- TDS amount to be deducted
-- Net payment to recipient
-- Due date for deposit
-- Form to be filed
-
-For deduction calculations, always show:
-- Gross income before deduction
-- Eligible investment/expenditure
-- Maximum limit under section
-- Actual deduction allowed (lesser of eligible or limit)
-- Net taxable income
-- Tax saved (with slab rate applied)
-
-════════════════════════════════════════
-REGIME COMPARISON (MANDATORY WHERE RELEVANT)
-════════════════════════════════════════
-For salary / individual income queries, ALWAYS compare:
-| Particulars | Old Regime | New Regime (Default from AY 2024-25) |
-Show which regime is beneficial for the specific example.
-New regime slabs (ITA 2025): 0-3L: Nil | 3-7L: 5% | 7-10L: 10% | 10-12L: 15% | 12-15L: 20% | >15L: 30%
-Old regime slabs: 0-2.5L: Nil | 2.5-5L: 5% | 5-10L: 20% | >10L: 30%
-Rebate u/s 87A (ITA 2025 s.159): ₹25,000 for income up to ₹7L under new regime.
-
-════════════════════════════════════════
-CONFIRMED SECTION MAPPINGS — ITA 1961 → ITA 2025
-════════════════════════════════════════
-TDS (Chapter XVII-B → XIX-A):
-192→393 | 192A→394 | 193→395 | 194→396 | 194A→397 | 194B→398 | 194BB→400 | 194C→401 | 194D→402 | 194G→407 | 194H→408 | 194I→409 | 194IA→410 | 194IB→411 | 194IC→412 | 194J→413 | 194K→414 | 194LA→415 | 194M→423 | 194N→424 | 194O→425 | 194Q→427 | 194S→429 | 195→430 | 197→436 | 206AA→452 | 206AB→453 | 206C→455
-
-DEDUCTIONS (Chapter VI-A → VIII):
-80C→123 | 80CCC→124 | 80CCD→125 | 80D→128 | 80DD→129 | 80DDB→130 | 80E→131 | 80G→135 | 80GG→139 | 80IA→141 | 80IB→143 | 80JJAA→148 | 80P→150 | 80TTA→155 | 80TTB→156 | 80U→157
-
-CAPITAL GAINS (Chapter IV → VI):
-45→67 | 47→69 | 48→71 | 50→73 | 50B→75 | 50C→76 | 54→80 | 54B→81 | 54EC→86 | 54F→88 | 55→92 | 55A→93
-
-ASSESSMENT (Chapter XIV):
-139→263 | 142→267 | 143→269 | 144→270 | 144B→272 | 147→278 | 148→279 | 148A→280 | 153A→287 | 153C→289
-
-PENALTIES: 270A→379 | 271→380 | 271AAB→384 | 271B→385 | 271C→388
-
-BUSINESS INCOME: 28→18 | 36→40 | 37→41 | 40A→44 | 43B→49 | 44AA→54 | 44AB→55 | 44AD→56 | 44ADA→57 | 44AE→58
-
-SALARY: 15→15 | 16→19 | 17→17
-
-OTHER KEY: 68→96 | 69→97 | 56→66 | 87A→159 | 131→195 | 132→196 | 133A→200 | 156→225 | 234A→318 | 234B→319 | 234C→320 | 234E→322 | 234F→323
-
-SECTION ACCURACY RULES:
-1. NEVER write "Verify in Act" — use mappings above for precise numbers
-2. Extract actual section numbers from KB chunks when available
-3. If genuinely not in mapping or KB, write "Section to be confirmed from official gazette"
-4. Always cite BOTH Acts: "ITA 1961 s.194J / ITA 2025 s.413"
-
-════════════════════════════════════════
-QUERY-TYPE SPECIFIC GUIDANCE
-════════════════════════════════════════
-
-FOR SALARY QUERIES:
-- Show gross salary, all allowances (HRA, LTA, etc.)
-- Apply deductions under s.16/s.19 (standard deduction ₹50,000)
-- Show perquisite valuation where relevant (s.17/s.17)
-- Always compare old vs new regime with break-even analysis
-- Show TDS obligation under s.192/s.393 with monthly deduction
-
-FOR CAPITAL GAINS QUERIES:
-- Identify asset type (STCA vs LTCA) and holding period (>24 months for immovable property = LTCA)
-- Always use the CORRECT CII from the table below — do NOT guess or approximate
-- Show full indexed cost computation with explicit CII values cited
-- Apply correct rate: LTCG 20% with indexation OR 12.5% without (immovable property post 23.7.2024)
-- Compare BOTH options and state which is lower — that is the tax payable
-- Show exemption calculation under s.54/s.80 or s.54EC/s.86 with personalised ₹ benefit
-- BASIC EXEMPTION SLAB CHECK (mandatory): If total income including LTCG is below basic exemption limit (₹2.5L old regime / ₹3L new regime), reduce LTCG by the shortfall before applying tax rate. Show this adjustment explicitly.
-- Flag new 23rd July 2024 amendments on property LTCG (12.5% without indexation)
-
-ADVANCE TAX — CAPITAL GAINS SPECIAL RULE (critical):
-Capital gains are NOT predictable at year start, so the law gives relief under s.234C:
-- If the asset is sold BEFORE 15th June: spread tax across all 4 instalments (15/45/75/100%)
-- If sold BETWEEN 15th June and 15th September: pay balance in September, December, March instalments
-- If sold BETWEEN 15th September and 15th December: pay balance in December and March instalments
-- If sold AFTER 15th December: entire capital gains tax due by 15th March — no 234C interest for earlier missed instalments
-ALWAYS ask or assume the sale date and apply the correct instalment schedule. Never blindly spread capital gains tax across all four instalments without considering sale timing.
-
-ASSUMPTION DISCLOSURE RULE (mandatory):
-Any figure not provided by the user but assumed by you MUST be flagged as:
-⚠️ Assumed: [item] = [value]. Please confirm and recalculate if different.
-Examples: transfer expenses, sale date, AY, property type (residential/land), improvement costs.
-Never silently embed assumptions into calculations.
-
-════════════════════════════════════════
-COST INFLATION INDEX (CII) — OFFICIAL CBDT TABLE
-════════════════════════════════════════
-CRITICAL: Use ONLY these official CII values. Using wrong CII directly changes tax liability and can reverse the optimal regime choice.
-
-| FY        | CII | | FY        | CII |
-|-----------|-----|-|-----------|-----|
-| 2001-02   | 100 | | 2013-14   | 220 |
-| 2002-03   | 105 | | 2014-15   | 240 |
-| 2003-04   | 109 | | 2015-16   | 254 |
-| 2004-05   | 113 | | 2016-17   | 264 |
-| 2005-06   | 117 | | 2017-18   | 272 |
-| 2006-07   | 122 | | 2018-19   | 280 |
-| 2007-08   | 129 | | 2019-20   | 289 |
-| 2008-09   | 137 | | 2020-21   | 301 |
-| 2009-10   | 148 | | 2021-22   | 317 |
-| 2010-11   | 167 | | 2022-23   | 331 |
-| 2011-12   | 184 | | 2023-24   | 348 |
-| 2012-13   | 200 | | 2024-25   | 363 |
-|           |     | | 2025-26   | 380 (provisional — confirm from CBDT notification) |
-
-Formula: Indexed Cost = Original Cost × (CII of year of sale ÷ CII of year of purchase)
-For property purchased before FY 2001-02: use FMV as on 1 April 2001 as cost of acquisition.
-Current AY is 2026-27 (FY 2025-26). Use CII 380 for FY 2025-26 sales unless CBDT notifies otherwise.
-⚠️ Always cite both CII values explicitly in the computation: "CII (FY 20XX-XX) = [value]"
-
-FOR TDS QUERIES:
-- Show threshold limit (below which no TDS)
-- Show rate for residents vs non-residents
-- Show rate if PAN not furnished (s.206AA/s.452) — usually 20%
-- Show higher rate for non-filers (s.206AB/s.453) — 2x or 5%, whichever higher
-- Show deposit timeline: 7th of next month (30 April for March)
-- Show applicable form: 26Q, 27Q, 24Q etc.
-
-FOR PENALTY/INTEREST QUERIES:
-- Always calculate interest under s.234A, 234B, 234C separately
-- Show penalty range (minimum to maximum) under relevant section
-- Flag whether penalty is mandatory or discretionary
-- Note penalty immunity provisions (e.g., s.270AA/s.380 immunity)
-
-FOR REASSESSMENT QUERIES:
-- Show new time limits under s.148A/s.280 procedure
-- Note escaped income threshold: >₹50L for extended period
-- Distinguish s.148/s.279 (reassessment) vs s.263/s.348 (revision)
-- Show mandatory approval requirements
 
 ════════════════════════════════════════
 KNOWLEDGE BASE CONTEXT (uploaded Act documents):
@@ -1180,23 +1056,18 @@ ALWAYS output in this exact structure:
 | [row]  | [detail] | s. XX | [detail] | s. YY | Retained/Renumbered/Amended/New/Removed |
 
 ### 📘 Old Act Detail (ITA 1961)
-Key provisions with section numbers from uploaded documents.
 
 ### 📗 New Act Detail (ITA 2025)
-Key provisions with section numbers from uploaded documents.
 
 ### ⚡ Effective Date & Practical Impact
 
 ## References
-IMPORTANT: Use ONLY section numbers found in uploaded documents. If uncertain write "Verify in Act".
 KNOWLEDGE BASE:
 {kbctx}
 WEB RESULTS:
 {webctx}`;
 
 // ── WEB SEARCH ─────────────────────────────────────────────
-
-
 async function webSearch(query) {
   try {
     const controller = new AbortController();
@@ -1224,7 +1095,6 @@ function formatWebResults(results) {
   ).join('\n\n');
 }
 
-// ── WEB TOGGLE ─────────────────────────────────────────────
 function toggleWeb(el){ localStorage.setItem('tm_web', el.checked?'1':'0'); }
 document.addEventListener('DOMContentLoaded',()=>{
   const saved = localStorage.getItem('tm_web');
@@ -1232,11 +1102,9 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 function isWebOn(){ const t=document.getElementById('webToggle'); return t?t.checked:true; }
 
-// ── CLAUDE CALL (via secure proxy) ────────────────────────
+// ── CLAUDE CALL ────────────────────────────────────────────
 async function claude(sys, messages, kbctx='', webctx='', maxTokens=2000) {
-  const s = sys
-    .replace('{kbctx}', kbctx || 'No documents uploaded yet.')
-    .replace('{webctx}', webctx || 'Web search not available.');
+  const s = sys.replace('{kbctx}', kbctx || 'No documents uploaded yet.').replace('{webctx}', webctx || 'Web search not available.');
   const r = await fetch('/api/claude', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1249,100 +1117,54 @@ async function claude(sys, messages, kbctx='', webctx='', maxTokens=2000) {
 // ── MARKDOWN ───────────────────────────────────────────────
 function md(t){
   if(!t) return '';
-
-  // 1. Fenced code blocks — convert calculation blocks to styled tables
   t = t.replace(/```[\w]*\n([\s\S]*?)```/g, (_, code) => {
     const lines = code.split('\n').filter(l => l.trim());
     const isCalc = lines.some(l => /[\d,₹]+/.test(l)) && lines.length > 2;
     if(!isCalc) return `<div class="code-block"><pre>${code}</pre></div>`;
-
     const rows = lines.map(l => {
       const raw = l.trim();
-      // Separator line
       if(/^[─\-═=─]{3,}$/.test(raw)) return '<tr class="calc-sep"><td colspan="2"></td></tr>';
-
-      // Try split strategies in order of preference:
-      // 1. Tab character
-      // 2. Two or more spaces
-      // 3. Amount at end: last token that looks like a number/amount
       let label = '', val = '';
-      if(raw.includes('\t')){
-        const p = raw.split('\t');
-        label = p[0].trim(); val = p.slice(1).join(' ').trim();
-      } else if(/\s{2,}/.test(raw)){
-        const p = raw.split(/\s{2,}/);
-        label = p[0].trim(); val = p.slice(1).join(' ').trim();
-      } else {
-        // Match trailing amount: optional sign, optional ₹, digits, commas, optional decimals
-        const m = raw.match(/^(.*?)\s+([-−(]?\s*₹?\s*[\d,]+(?:\.\d+)?[)]?)$/);
-        if(m){ label = m[1].trim(); val = m[2].trim(); }
-        else { label = raw; val = ''; }
-      }
-
-      // No amount found — treat as section header
+      if(raw.includes('\t')){ const p = raw.split('\t'); label = p[0].trim(); val = p.slice(1).join(' ').trim(); }
+      else if(/\s{2,}/.test(raw)){ const p = raw.split(/\s{2,}/); label = p[0].trim(); val = p.slice(1).join(' ').trim(); }
+      else { const m = raw.match(/^(.*?)\s+([-−(]?\s*₹?\s*[\d,]+(?:\.\d+)?[)]?)$/); if(m){ label = m[1].trim(); val = m[2].trim(); } else { label = raw; val = ''; } }
       if(!val){
-        // Check if it's a separator keyword
         const isHead = /^(particulars|computation|sl\.?\s*no|s\.?\s*no)/i.test(label);
         const isSect = /^(scenario|tax calculation|deductions under|income under|monthly|annual|gross|net taxable)/i.test(label);
-        if(isHead)
-          return `<tr class="calc-head"><td>${label}</td><td class="calc-amt">Amount (₹)</td></tr>`;
-        if(isSect)
-          return `<tr class="calc-head"><td>${label}</td><td class="calc-amt"></td></tr>`;
+        if(isHead) return `<tr class="calc-head"><td>${label}</td><td class="calc-amt">Amount (₹)</td></tr>`;
+        if(isSect) return `<tr class="calc-head"><td>${label}</td><td class="calc-amt"></td></tr>`;
         return `<tr class="calc-label"><td colspan="2">${label}</td></tr>`;
       }
-
       const isTot = /^(total|net|grand|tax liability|tax payable|balance|amount payable|amount due)/i.test(label);
       const isSub = /^(less|add|minus|plus)/i.test(label);
       const cls = isTot ? ' class="calc-total"' : isSub ? ' class="calc-sub"' : '';
       return `<tr${cls}><td>${label}</td><td class="calc-amt">${val}</td></tr>`;
     }).join('');
-
     return `<table class="calc-table"><colgroup><col style="width:68%"><col style="width:32%"></colgroup>${rows}</table>`;
   });
-
-  // 2. Inline code
   t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-  // 3. Headings — h1 through h4 (#### must come before ###)
   t = t.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
   t = t.replace(/^### (.+)$/gm,  '<h3>$1</h3>');
   t = t.replace(/^## (.+)$/gm,   '<h2>$1</h2>');
   t = t.replace(/^# (.+)$/gm,    '<h1>$1</h1>');
-
-  // 4. Bold / italic
   t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   t = t.replace(/\*(.+?)\*/g,     '<em>$1</em>');
-
-  // 5. Horizontal rules
   t = t.replace(/^---+$/gm, '<hr/>');
-
-  // 6. Markdown tables
-  t = t.replace(/^\| ?(.+?) ?\|$/gm, (_, r) =>
-    '<tr>' + r.split('|').map(c => `<td>${c.trim()}</td>`).join('') + '</tr>'
-  );
-  // Skip separator rows (---|---) and wrap in table
+  t = t.replace(/^\| ?(.+?) ?\|$/gm, (_, r) => '<tr>' + r.split('|').map(c => `<td>${c.trim()}</td>`).join('') + '</tr>');
   t = t.replace(/((<tr>.*?<\/tr>\n?)+)/gs, rows => {
     const allRows = rows.trim().split('\n').filter(l => l.includes('<tr>'));
-    // Filter out separator rows (contain only dashes/spaces)
-    const dataRows = allRows.filter(r => !/<td>[\s\-:]+<\/td>/.test(r) || r.replace(/<\/?t[dr]>/g,'').replace(/[\s\-:|]/g,'').length > 0);
-    if(!dataRows.length) return '';
-    const filtered = dataRows.filter(r => !r.replace(/<[^>]+>/g,'').trim().match(/^[\-: ]+$/));
+    const filtered = allRows.filter(r => !r.replace(/<[^>]+>/g,'').trim().match(/^[\-: ]+$/));
     if(!filtered.length) return '';
     const [head, ...body] = filtered;
     const th = head.replace(/<td>/g,'<th>').replace(/<\/td>/g,'</th>');
     return `<table><thead>${th}</thead><tbody>${body.join('')}</tbody></table>`;
   });
-
-  // 7. Lists
   t = t.replace(/^[-•] (.+)$/gm, '<li>$1</li>');
   t = t.replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>');
   t = t.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
-
-  // 8. Paragraphs
   t = t.replace(/\n\n/g, '</p><p>');
   t = t.replace(/\n/g, '<br/>');
   t = t.replace(/^(?!<[htupblo\/])(.+)$/gm, '<p>$1</p>');
-
   return t;
 }
 
@@ -1354,6 +1176,8 @@ function sw(t){
   document.getElementById('panel-'+t).classList.add('active');
   document.getElementById('tab-'+t).classList.add('active');
   document.getElementById('sb-'+t).classList.add('active');
+  // Auto-load dashboard on first visit
+  if(t === 'litdash' && !dashLoaded) loadDashboard();
 }
 function toggleSb(){document.getElementById('sidebar').classList.toggle('collapsed');}
 function closeSetup(){document.getElementById('setupModal').style.display='none';sw('kb');}
@@ -1377,19 +1201,14 @@ async function sendChat(){
   inp.value='';inp.style.height='auto';document.getElementById('sendBtn').disabled=true;
   const tid=showTyping(isWebOn()?'Searching KB + web…':'Searching KB…');
   try{
-    // Load chunks if not yet loaded
     await ensureChunks();
-    // KB retrieval always runs; web search only if toggle is on
     const kbctx = getCtx(text, 12);
     let webData = { results: [] };
-    if(isWebOn()){
-      webData = await webSearch(text + ' income tax India 2025');
-    }
+    if(isWebOn()){ webData = await webSearch(text + ' income tax India 2025'); }
     const webctx = formatWebResults(webData.results);
     const sources = [];
     if(KB().length) sources.push('📚 Knowledge Base');
     if(webData.results.length) sources.push('🌐 Web ('+webData.results.length+' results)');
-
     rmTyping(tid);
     const tid2=showTyping('Generating answer…');
     const reply=await claude(SYS_TAX,msgs,kbctx,webctx,3500);
@@ -1471,35 +1290,284 @@ async function lookup(){
   }catch(e){document.getElementById('crContent').innerHTML=`<p style="color:var(--red)">Error: ${e.message}</p>`;}
 }
 
+// ── LITIGATION DASHBOARD ───────────────────────────────────
+let dashLoaded = false;
 
+// Colour palette — matches ink/paper design system
+const OUTCOME_COLORS = {
+  'Assessee Favored':    '#166534',  // green
+  'Revenue Favored':     '#991B1B',  // red
+  'Mixed / Partial':     '#525252',  // ink-2
+  'Remanded / Sent Back':'#92400E',  // amber
+};
+const RISK_COLORS = {
+  'high':   '#991B1B',
+  'medium': '#D97706',
+  'low':    '#166534',
+};
+
+function riskClass(score){ return score>=65?'high':score>=40?'med':'low'; }
+function riskLabel(score){ return score>=65?'High':score>=40?'Med':'Low'; }
+
+let activeDashTab = 'it';
+
+function switchDashTab(tab){
+  activeDashTab = tab;
+  document.getElementById('dashIT').style.display  = tab==='it'  ? '' : 'none';
+  document.getElementById('dashGST').style.display = tab==='gst' ? '' : 'none';
+  const btnIT  = document.getElementById('tabBtnIT');
+  const btnGST = document.getElementById('tabBtnGST');
+  if(tab==='it'){
+    btnIT.style.background=  'var(--ink)'; btnIT.style.color= 'var(--paper)'; btnIT.style.borderColor= 'var(--ink)'; btnIT.style.fontWeight='600';
+    btnGST.style.background= 'var(--paper)'; btnGST.style.color= 'var(--text-2)'; btnGST.style.borderColor= 'var(--rule)'; btnGST.style.fontWeight='500';
+    if(!dashLoaded) loadDashboard();
+  } else {
+    btnGST.style.background= 'var(--ink)'; btnGST.style.color= 'var(--paper)'; btnGST.style.borderColor= 'var(--ink)'; btnGST.style.fontWeight='600';
+    btnIT.style.background=  'var(--paper)'; btnIT.style.color= 'var(--text-2)'; btnIT.style.borderColor= 'var(--rule)'; btnIT.style.fontWeight='500';
+    if(!gstDashLoaded) loadGSTDashboard();
+  }
+}
+
+function refreshActiveDash(){
+  if(activeDashTab==='it') loadDashboard();
+  else loadGSTDashboard();
+}
+
+async function loadDashboard(){
+  const btn = document.getElementById('dashRefreshBtn');
+  btn.disabled = true; btn.textContent = 'Loading…';
+  document.getElementById('sectionTableBody').innerHTML =
+    '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text-3);font-size:12px">Fetching from Qdrant…</td></tr>';
+
+  try {
+    const res = await fetch('http://localhost:8000/analytics/litigation');
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const d = await res.json();
+    dashLoaded = true;
+
+    const total = d.total_cases || 0;
+    document.getElementById('dashCaseCount').textContent = total.toLocaleString('en-IN');
+    document.getElementById('kpiTotal').textContent      = total.toLocaleString('en-IN');
+    document.getElementById('kpiSections').textContent   = (d.section_risk||[]).length;
+    document.getElementById('dashLoadedAt').textContent  =
+      new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+
+    const outcomes = d.outcome_split || [];
+    const oc = Object.fromEntries(outcomes.map(o=>[o.label, o.count]));
+    document.getElementById('kpiAssessee').textContent = oc['Assessee Favored'] ?? '—';
+    document.getElementById('kpiRevenue').textContent  = oc['Revenue Favored']  ?? '—';
+    document.getElementById('kpiRemanded').textContent = oc['Remanded / Sent Back'] ?? '—';
+
+    renderSectionTable(d.section_risk || []);
+    renderDonut('donutOutcomeArcs','donutOutcomePct', outcomes, OUTCOME_COLORS, 'Assessee Favored');
+    renderDonut('donutRiskArcs','donutRiskPct', d.risk_split||[], RISK_COLORS, 'high');
+    renderOutcomeLegend('donutOutcomeLegend', outcomes, OUTCOME_COLORS);
+    renderOutcomeLegend('donutRiskLegend', d.risk_split||[], RISK_COLORS);
+    renderTxTypeList(d.top_tx_types || []);
+
+    if(d.error) showToast('Partial data: '+d.error, 'info');
+  } catch(e) {
+    showToast('Dashboard load failed: '+e.message, 'error');
+    document.getElementById('sectionTableBody').innerHTML =
+      `<tr><td colspan="7" style="padding:24px;text-align:center;color:var(--accent-red);font-size:12px">⚠ ${e.message}</td></tr>`;
+  }
+  btn.disabled = false; btn.textContent = '↻ Refresh';
+}
+
+let gstDashLoaded = false;
+const GST_CONTENT_COLORS = {'statute':'#166534','rate_schedule':'#7C3AED','unknown':'#A3A3A3'};
+const GST_ACT_COLORS = {'CGST':'#1D4ED8','IGST':'#0891B2','RATE_SCHEDULE':'#7C3AED','unknown':'#A3A3A3'};
+
+async function loadGSTDashboard(){
+  const btn = document.getElementById('dashRefreshBtn');
+  btn.disabled = true; btn.textContent = 'Loading…';
+  document.getElementById('gstSectionTableBody').innerHTML =
+    '<tr><td colspan="3" style="padding:32px;text-align:center;color:var(--text-3);font-size:12px">Fetching from Qdrant…</td></tr>';
+
+  try {
+    const res = await fetch('http://localhost:8000/analytics/gst');
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const d = await res.json();
+    gstDashLoaded = true;
+
+    const total = d.total_entries || 0;
+    document.getElementById('gstEntryCount').textContent = total.toLocaleString('en-IN');
+    document.getElementById('gstKpiTotal').textContent   = total.toLocaleString('en-IN');
+    document.getElementById('gstLoadedAt').textContent   =
+      new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+
+    const ctSplit = d.content_type_split || [];
+    const ctMap = Object.fromEntries(ctSplit.map(o=>[o.label, o.count]));
+    document.getElementById('gstKpiStatutes').textContent = ctMap['statute'] ?? '—';
+    document.getElementById('gstKpiRates').textContent    = ctMap['rate_schedule'] ?? '—';
+    document.getElementById('gstKpiSections').textContent = (d.top_sections||[]).length;
+
+    renderGSTSectionTable(d.top_sections||[], total);
+    renderDonut('donutGSTContentArcs','donutGSTContentPct', ctSplit, GST_CONTENT_COLORS, 'statute');
+    renderOutcomeLegend('donutGSTContentLegend', ctSplit, GST_CONTENT_COLORS);
+    renderDonut('donutGSTActArcs','donutGSTActPct', d.act_split||[], GST_ACT_COLORS, 'CGST');
+    renderOutcomeLegend('donutGSTActLegend', d.act_split||[], GST_ACT_COLORS);
+    renderGSTRateTable(d.top_rates||[]);
+
+    if(d.error) showToast('Partial data: '+d.error, 'info');
+  } catch(e) {
+    showToast('GST dashboard load failed: '+e.message, 'error');
+    document.getElementById('gstSectionTableBody').innerHTML =
+      `<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--accent-red);font-size:12px">⚠ ${e.message}</td></tr>`;
+  }
+  btn.disabled = false; btn.textContent = '↻ Refresh';
+}
+
+function renderGSTSectionTable(sections, totalEntries){
+  const tbody = document.getElementById('gstSectionTableBody');
+  if(!sections.length){
+    tbody.innerHTML = '<tr><td colspan="3" style="padding:32px;text-align:center;color:var(--text-3);font-size:12px">No sections tagged yet.</td></tr>';
+    return;
+  }
+  const max = Math.max(...sections.map(s=>s.count), 1);
+  tbody.innerHTML = sections.map((s,i) => {
+    const barPct = Math.round(s.count/max*100);
+    return `<tr style="${i%2===1?'background:var(--paper-2)':''}">
+      <td style="padding:6px 12px;font-family:'Geist Mono',monospace;font-size:11px;font-weight:600;color:var(--ink)">${s.section}</td>
+      <td style="padding:6px 8px;text-align:right;font-family:'Geist Mono',monospace;font-size:11px;color:var(--text-2)">${s.count}</td>
+      <td style="padding:6px 14px;min-width:100px">
+        <div style="height:5px;background:var(--paper-3);border-radius:3px;overflow:hidden">
+          <div style="width:${barPct}%;height:100%;background:#1D4ED8;border-radius:3px"></div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderGSTRateTable(rates){
+  const tbody = document.getElementById('gstRateTableBody');
+  if(!rates.length){
+    tbody.innerHTML = '<tr><td colspan="3" style="padding:32px;text-align:center;color:var(--text-3);font-size:12px">No rate schedule data.</td></tr>';
+    return;
+  }
+  const rateColor = r => r==='0'?'#166534':r==='5'?'#0891B2':r==='12'?'#D97706':r==='18'?'#9333EA':r==='28'?'#DC2626':'#525252';
+  tbody.innerHTML = rates.map((r,i) => `
+    <tr style="${i%2===1?'background:var(--paper-2)':''}">
+      <td style="padding:6px 12px;font-family:'Geist Mono',monospace;font-size:11px;font-weight:600;color:var(--ink)">${r.hsn}</td>
+      <td style="padding:6px 12px;font-size:11.5px;color:var(--text-2)">${r.title}</td>
+      <td style="padding:6px 12px;text-align:right">
+        <span style="font-family:'Geist Mono',monospace;font-size:11px;font-weight:700;color:${rateColor(r.rate)}">${r.rate}%</span>
+      </td>
+    </tr>`).join('');
+}
+
+function renderSectionTable(sections){
+  const tbody = document.getElementById('sectionTableBody');
+  if(!sections.length){
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text-3);font-size:12px">No sections tagged yet — run the ITAT scraper with section extraction.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = sections.map((s,i) => {
+    const tot = s.total || 1;
+    const aPct = Math.round(s.assessee_favored/tot*100);
+    const rPct = Math.round(s.revenue_favored/tot*100);
+    const mPct = Math.round((s.mixed||0)/tot*100);
+    const remPct = 100 - aPct - rPct - mPct;
+    const rc = riskClass(s.risk_score);
+    return `<tr style="${i%2===1?'background:var(--paper-2)':''}">
+      <td style="padding:6px 12px;font-family:'Geist Mono',monospace;font-size:11px;font-weight:600;color:var(--ink)">s.${s.section}</td>
+      <td style="padding:6px 8px;text-align:right;font-family:'Geist Mono',monospace;font-size:11px;color:var(--text-2)">${s.total}</td>
+      <td style="padding:6px 12px;min-width:90px">
+        <div style="display:flex;height:5px;border-radius:3px;overflow:hidden;gap:1px" title="Assessee ${aPct}% · Revenue ${rPct}% · Mixed ${mPct}% · Remanded ${remPct}%">
+          <div style="width:${aPct}%;background:#166534"></div>
+          <div style="width:${rPct}%;background:#991B1B"></div>
+          <div style="width:${mPct}%;background:#525252"></div>
+          <div style="width:${remPct}%;background:#D97706"></div>
+        </div>
+      </td>
+      <td style="padding:6px 6px;text-align:center;font-family:'Geist Mono',monospace;font-size:10px;color:var(--accent-green)">${s.assessee_favored}</td>
+      <td style="padding:6px 6px;text-align:center;font-family:'Geist Mono',monospace;font-size:10px;color:var(--accent-red)">${s.revenue_favored}</td>
+      <td style="padding:6px 6px;text-align:center;font-family:'Geist Mono',monospace;font-size:10px;color:var(--accent-amber)">${s.remanded||0}</td>
+      <td style="padding:6px 8px;text-align:right"><span class="risk-chip ${rc}">${riskLabel(s.risk_score)}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// Generic SVG donut renderer
+function renderDonut(arcsId, pctId, data, colorMap, highlightLabel){
+  const arcsEl = document.getElementById(arcsId);
+  const pctEl  = document.getElementById(pctId);
+  arcsEl.innerHTML = '';
+  if(!data.length){ pctEl.textContent='—'; return; }
+
+  const total = data.reduce((s,o)=>s+o.count, 0);
+  if(!total){ pctEl.textContent='—'; return; }
+
+  const R = 44, C = 2*Math.PI*R;
+  let offset = -C/4; // start at top (12 o'clock)
+
+  data.forEach(o => {
+    const key   = (o.label||'').toLowerCase();
+    const color = colorMap[o.label] || colorMap[key] || '#A3A3A3';
+    const frac  = o.count / total;
+    const dash  = frac * C;
+    const gap   = C - dash;
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',60); c.setAttribute('cy',60); c.setAttribute('r',R);
+    c.setAttribute('fill','none');
+    c.setAttribute('stroke', color);
+    c.setAttribute('stroke-width','16');
+    c.setAttribute('stroke-dasharray',`${dash} ${gap}`);
+    c.setAttribute('stroke-dashoffset', -offset);
+    arcsEl.appendChild(c);
+    offset += dash;
+  });
+
+  // Centre number — find the highlight item
+  const hi = data.find(o => o.label === highlightLabel || o.label.toLowerCase() === highlightLabel);
+  pctEl.textContent = hi ? Math.round(hi.count/total*100)+'%' : Math.round(data[0].count/total*100)+'%';
+}
+
+function renderOutcomeLegend(legendId, data, colorMap){
+  const el = document.getElementById(legendId);
+  const total = data.reduce((s,o)=>s+o.count,0)||1;
+  el.innerHTML = data.map(o => {
+    const key   = (o.label||'').toLowerCase();
+    const color = colorMap[o.label] || colorMap[key] || '#A3A3A3';
+    return `<div style="display:flex;align-items:center;gap:6px">
+      <div style="width:7px;height:7px;border-radius:2px;background:${color};flex-shrink:0"></div>
+      <div style="flex:1;font-size:10px;color:var(--text-2);line-height:1.3">${o.label}</div>
+      <div style="font-size:9.5px;color:var(--text-3);font-family:'Geist Mono',monospace">${Math.round(o.count/total*100)}%</div>
+    </div>`;
+  }).join('');
+}
+
+function renderTxTypeList(txTypes){
+  const el = document.getElementById('txTypeList');
+  if(!txTypes.length){
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-3);font-size:12px">No data.</div>';
+    return;
+  }
+  const max = Math.max(...txTypes.map(t=>t.count), 1);
+  el.innerHTML = txTypes.map((t,i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:5px 14px;${i%2===1?'background:var(--paper-2)':''}">
+      <div style="flex:1;font-size:11.5px;color:var(--text-2);line-height:1.4">${t.name}</div>
+      <div style="width:120px;height:4px;background:var(--paper-3);border-radius:2px;overflow:hidden;flex-shrink:0">
+        <div style="width:${Math.round(t.count/max*100)}%;height:100%;background:var(--ink);border-radius:2px"></div>
+      </div>
+      <div style="width:28px;text-align:right;font-size:10.5px;color:var(--text-3);font-family:'Geist Mono',monospace;flex-shrink:0">${t.count}</div>
+    </div>`).join('');
+}
+
+// ── MSG ACTIONS ────────────────────────────────────────────
 function copyMsg(btn){
   const bubble=btn.closest('.msg-row').querySelector('.bubble');
   const text=bubble.innerText||bubble.textContent;
-  navigator.clipboard.writeText(text).then(()=>{
-    const orig=btn.innerHTML;
-    btn.textContent='Copied!';
-    setTimeout(()=>{btn.innerHTML=orig;},1500);
-  });
+  navigator.clipboard.writeText(text).then(()=>{ const orig=btn.innerHTML; btn.textContent='Copied!'; setTimeout(()=>{btn.innerHTML=orig;},1500); });
 }
 function printMsg(btn){
   const bubble=btn.closest('.msg-row').querySelector('.bubble');
   const html=bubble.innerHTML;
   const allBubbles=[...document.querySelectorAll('.bubble.user')];
-  const query=allBubbles.length?allBubbles[allBubbles.length-1].innerText:'Tax Query';
   const win=window.open('','_blank','width=800,height=600');
   win.document.write(`<!DOCTYPE html><html><head><title>TaxMind</title>
-<style>body{font-family:Georgia,serif;max-width:720px;margin:40px auto;padding:0 24px;color:#111;line-height:1.75}h2{border-bottom:1px solid #ddd;padding-bottom:6px}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.9em}th{background:#f0f0ed;color:#111;padding:8px 12px;text-align:left;font-size:.78em;text-transform:uppercase;letter-spacing:.04em}td{padding:7px 12px;border:1px solid #ddd}tr:nth-child(even) td{background:#f9f9f7}code{background:#f3f3f0;padding:1px 5px;border-radius:3px}blockquote{border-left:3px solid #999;padding-left:12px;color:#555;font-style:italic}.hdr{border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:baseline}.ftr{border-top:1px solid #ddd;margin-top:32px;padding-top:12px;font-size:.78em;color:#999}
-.calc-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.85em;font-family:monospace;border:1px solid #ddd}
-.calc-table td{padding:5px 10px;border-bottom:1px solid #eee}
-.calc-table td:last-child{text-align:right}
-.calc-table tr.calc-head td{background:#f3f3f0;color:#111;font-size:.78em;text-transform:uppercase;font-weight:600;padding:6px 10px;border-bottom:2px solid #ccc}
-.calc-table tr.calc-sep td{border-top:1px solid #ccc;padding:0;border-bottom:none}
-.calc-table tr.calc-total td{font-weight:700;border-top:2px solid #ccc;border-bottom:2px solid #ccc;background:#f7f7f5}
-.calc-table tr:nth-child(even){background:#fafaf8}
-h4{font-size:.82em;text-transform:uppercase;letter-spacing:.05em;background:#f3f3f0;padding:3px 7px;border-left:2px solid #ccc;color:#111}
-th{background:#f3f3f0!important;color:#111!important;border-bottom:2px solid #ccc}</style></head><body>
+<style>body{font-family:Georgia,serif;max-width:720px;margin:40px auto;padding:0 24px;color:#111;line-height:1.75}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.9em}th{background:#f0f0ed;color:#111;padding:8px 12px;text-align:left;font-size:.78em;text-transform:uppercase;letter-spacing:.04em}td{padding:7px 12px;border:1px solid #ddd}tr:nth-child(even) td{background:#f9f9f7}code{background:#f3f3f0;padding:1px 5px;border-radius:3px}.hdr{border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:baseline}.ftr{border-top:1px solid #ddd;margin-top:32px;padding-top:12px;font-size:.78em;color:#999}</style></head><body>
 <div class="hdr"><strong>TaxMind</strong><small>${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}</small></div>
-
 ${html}<div class="ftr">Generated by TaxMind · For professional reference only · Verify with current Act text</div>
 </body></html>`);
   win.document.close();win.focus();setTimeout(()=>win.print(),400);
@@ -1516,8 +1584,9 @@ function downloadMsg(btn){
   a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(out);
   a.download=fname;a.click();
 }
+
 function showToast(msg,type='success'){
-  const c={success:'var(--teal)',error:'var(--red)',info:'var(--gold)'};
+  const c={success:'var(--ink)',error:'#DC2626',info:'#D97706'};
   const t=document.createElement('div');t.className='toast';t.style.borderLeftColor=c[type];t.textContent=msg;
   document.body.appendChild(t);setTimeout(()=>t.remove(),3500);
 }

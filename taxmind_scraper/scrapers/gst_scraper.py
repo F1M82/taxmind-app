@@ -13,7 +13,7 @@ import hashlib
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator, Optional
 
@@ -274,18 +274,18 @@ class GSTScraper:
             "section_title": section_title,
             "chunk_index": chunk_index,
             "total_chunks": None,   # patched after all chunks known
-            "scraped_date": datetime.utcnow().date().isoformat(),
+            "scraped_date": datetime.now(timezone.utc).date().isoformat(),
         }
 
     # ─── Review Queue Output ──────────────────────────────────────────────────
 
     def _write_review_queue(self, chunks: list[dict], act: str) -> Path:
-        date_str = datetime.utcnow().strftime("%Y%m%d")
+        date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
         out_file = self.review_queue_dir / f"gst_act_{act.lower()}_{date_str}.json"
 
         payload = {
             "source": f"GSTScraper — {act} Act 2017 (CBIC PDF)",
-            "scraped_at": datetime.utcnow().isoformat(),
+            "scraped_at": datetime.now(timezone.utc).isoformat(),
             "total_chunks": len(chunks),
             "status": "pending_review",
             "chunks": chunks,

@@ -1470,7 +1470,7 @@ function renderSectionTable(sections){
     const remPct = 100 - aPct - rPct - mPct;
     const rc = riskClass(s.risk_score);
     return `<tr style="${i%2===1?'background:var(--paper-2)':''}">
-      <td style="padding:6px 12px;font-family:'Geist Mono',monospace;font-size:11px;font-weight:600;color:var(--ink)">s.${s.section}</td>
+      <td style="padding:6px 12px;font-family:'Geist Mono',monospace;font-size:11px;font-weight:600;color:var(--ink)">s.${s.section.replace(/_/g, " ")}</td>
       <td style="padding:6px 8px;text-align:right;font-family:'Geist Mono',monospace;font-size:11px;color:var(--text-2)">${s.total}</td>
       <td style="padding:6px 12px;min-width:90px">
         <div style="display:flex;height:5px;border-radius:3px;overflow:hidden;gap:1px" title="Assessee ${aPct}% · Revenue ${rPct}% · Mixed ${mPct}% · Remanded ${remPct}%">

@@ -7,12 +7,18 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from typing import Optional
 import tempfile
 
 app = FastAPI(title="TaxMind API", version="2.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+@app.get("/")
+def serve_frontend():
+    path = os.path.join(os.path.dirname(__file__), "..", "static", "index.html")
+    return FileResponse(path)
 
 class TaxPredictRequest(BaseModel):
     gross_income: float = Field(..., example=85000.0)

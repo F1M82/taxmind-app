@@ -27,3 +27,5 @@ langgraph==0.1.19
 redis==5.0.6
 langfuse==2.36.0
 qdrant-client==1.9.1
+
+langchain-groq

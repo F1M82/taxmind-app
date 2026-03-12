@@ -1,4 +1,4 @@
-"""agent/langgraph_agent.py — LangGraph agent with guardrails, rewriting, grading, caching"""
+"""agent/langgraph_agent.py – LangGraph agent with guardrails, rewriting, grading, caching"""
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -22,6 +22,12 @@ class AgentState(TypedDict):
 DEFAULT_PROVIDER = os.getenv("DEFAULT_LLM_PROVIDER", "claude")
 
 def _llm(): return get_llm(DEFAULT_PROVIDER, temperature=0)
+
+def _doc_text(doc):
+    """Safely extract text from a doc that may be a dict or a plain string."""
+    if isinstance(doc, dict):
+        return doc.get('answer', doc.get('text', doc.get('content', str(doc))))
+    return str(doc)
 
 def guardrail_node(state):
     result = _llm().invoke([HumanMessage(content=
@@ -53,15 +59,16 @@ def retrieval_node(state):
 def grader_node(state):
     grades = []
     for doc in state["retrieved_docs"]:
+        text = _doc_text(doc)
         r = _llm().invoke([HumanMessage(content=
-            f"Is this document relevant to the question? YES or NO only.\nQ: {state['query']}\nDoc: {doc.get('answer', doc.get('text', ''))}")])
+            f"Is this document relevant to the question? YES or NO only.\nQ: {state['query']}\nDoc: {text}")])
         grades.append("YES" in r.content.upper())
     print(f"Grading: {sum(grades)}/{len(grades)} relevant")
     return {**state, "doc_grades": grades}
 
 def generator_node(state):
     relevant = [d for d, g in zip(state["retrieved_docs"], state["doc_grades"]) if g]
-    context = "\n\n".join(f"[{i+1}] {d.get('answer', d.get('text', ''))}" for i, d in enumerate(relevant))
+    context = "\n\n".join(f"[{i+1}] {_doc_text(d)}" for i, d in enumerate(relevant))
     result = _llm().invoke([HumanMessage(content=
         f"You are TaxMind, an expert Indian tax assistant.\n\nContext:\n{context or 'No relevant context.'}\n\nQuestion: {state['query']}\n\nProvide a clear answer. Always recommend consulting a licensed CA for specific advice.")])
     print(f"Answer generated ({len(result.content)} chars)")
@@ -115,4 +122,3 @@ def run_langgraph_agent(query, provider=None, history=None):
     set_exact(query, output)
     set_semantic(query, output)
     return output
-  

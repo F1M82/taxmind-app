@@ -213,8 +213,8 @@ def agent_chat(req: AgentRequest):
             SUPPORTED_PROVIDERS = {"claude", "openai", "gemini", "gemini-lite", "groq"}
             actual_provider = routed_provider if routed_provider in SUPPORTED_PROVIDERS else "claude"
             if actual_provider != routed_provider:
-            routed_model = "claude-haiku-4-5-20251001"
-            task_type    = task_type + "_fallback"
+                 routed_model = "claude-haiku-4-5-20251001"
+                 task_type    = task_type + "_fallback"
             result = run_langgraph_agent(req.message, provider=actual_provider, history=req.history)
             from services.monitoring import log_agent_run
             log_agent_run(req.message, result, actual_provider)

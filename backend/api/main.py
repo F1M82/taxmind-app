@@ -215,7 +215,7 @@ def agent_chat(req: AgentRequest):
             if actual_provider != routed_provider:
                  routed_model = "claude-haiku-4-5-20251001"
                  task_type    = task_type + "_fallback"
-            result = run_langgraph_agent(req.message, provider=actual_provider, history=req.history)
+            result = run_langgraph_agent(req.message, provider=actual_provider, history=req.history, domain=req.domain)
             from services.monitoring import log_agent_run
             log_agent_run(req.message, result, actual_provider)
             return {

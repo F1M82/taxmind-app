@@ -127,7 +127,7 @@ def route_guardrail(state):
     return "rewriter" if state["is_tax_query"] else "rejection"
 
 def route_grader(state):
-    if sum(state["doc_grades"]) >= 1:
+    if len(state["retrieved_docs"]) > 0:
         return "generator"
     if state["retry_count"] < 2:
         return "rewriter"

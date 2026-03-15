@@ -192,3 +192,8 @@ def collection_stats() -> dict:
                     "points": info.points_count,
                     "status": str(info.status),
                 }
+            except Exception:
+                stats[col] = "not found"
+        return stats
+    except Exception as e:
+        return {"error": str(e)}
